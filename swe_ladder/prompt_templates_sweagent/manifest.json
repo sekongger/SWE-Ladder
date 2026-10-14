@@ -1,0 +1,9 @@
+{
+  "source": "R2E-Gym-eval/src/r2egym/agenthub/config/sweagent/edit_non_fn_calling.yaml",
+  "source_sha256": "662859ba81805d1834c2ec3b1917e0f3b8106297accf3a4d62153d95807f4414",
+  "system_prompt_sha256": "52f515c7e93321e7474d58bfeca409296b8822aa6810d1396ced72f1b193b870",
+  "instance_prompt_sha256": "2aa5d8cdc8c3919723b3083a4587ca91cb8274afdafa3cd0ffdc66fa2a3d0af6",
+  "system_prompt_bytes": 3827,
+  "instance_prompt_bytes": 1185,
+  "placeholder": "{problem_statement}"
+}

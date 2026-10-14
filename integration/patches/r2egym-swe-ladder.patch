@@ -1,0 +1,599 @@
+diff --git a/src/r2egym/agenthub/action/action.py b/src/r2egym/agenthub/action/action.py
+index 72c0557..a9335ed 100644
+--- a/src/r2egym/agenthub/action/action.py
++++ b/src/r2egym/agenthub/action/action.py
+@@ -152,6 +152,26 @@ class Action:
+         return " ".join(cmd_parts)
+ 
+ 
++def normalize_action_for_allowed_commands(action: "Action", allowed_cmds: list[str]) -> "Action":
++    """Map legacy SWE-agent function names onto the registered command files."""
++    if (
++        action.function_name == "bash"
++        and "execute_bash" in allowed_cmds
++        and "bash" not in allowed_cmds
++    ):
++        return Action(function_name="execute_bash", parameters=dict(action.parameters))
++    file_editor_subcommands = {"view", "create", "str_replace", "insert", "undo_edit"}
++    if (
++        action.function_name in file_editor_subcommands
++        and "file_editor" in allowed_cmds
++        and action.function_name not in allowed_cmds
++    ):
++        params = dict(action.parameters)
++        params.setdefault("command", action.function_name)
++        return Action(function_name="file_editor", parameters=params)
++    return action
++
++
+ if __name__ == "__main__":
+     # Sample usage
+ 
+diff --git a/src/r2egym/agenthub/agent/agent.py b/src/r2egym/agenthub/agent/agent.py
+index aec0260..679cb51 100644
+--- a/src/r2egym/agenthub/agent/agent.py
++++ b/src/r2egym/agenthub/agent/agent.py
+@@ -357,6 +357,8 @@ class Agent:
+             parameters = json.loads(
+                 response.choices[0].message.tool_calls[0].function.arguments
+             )
++            if not isinstance(parameters, dict):
++                raise TypeError("tool-call arguments must decode to an object")
+             action = Action(function_name=function_name, parameters=parameters)
+         except:
+             action = Action(function_name="", parameters={})
+@@ -374,6 +376,8 @@ class Agent:
+             parameters = json.loads(
+                 response.choices[0].message.tool_calls[0].function.arguments
+             )
++            if not isinstance(parameters, dict):
++                raise TypeError("tool-call arguments must decode to an object")
+             action = Action(function_name=function_name, parameters=parameters)
+         except:
+             action = Action(function_name="", parameters={})
+@@ -565,12 +569,25 @@ class Agent:
+                 total_tokens = self._count_tokens(messages)
+                 self.logger.warning("No token usage information available.")
+ 
+-            # Fix specific formatting issues for Qwen model output here
++            # Fix specific formatting issues for Qwen model output here.
++            # The model emits the `command` parameter in the training format
++            #   <parameter=command=VALUE>
++            # (value embedded after '=', terminated by '>' with no closing tag),
++            # while Action.from_string expects <parameter=command>VALUE</parameter>.
++            # The previous fix only rewrote the opening "<parameter=command=" ->
++            # "<parameter=command>", which produced an unparseable
++            # "<parameter=command>VALUE>" (stray '>', missing </parameter>): the
++            # regex parser then swallowed the following <parameter=path> into the
++            # command value, so commands silently no-oped or crashed with path=None.
++            # Do a full, well-formed normalization instead.
+             response_content = response.choices[0].message.content
+             if response_content and "<parameter=command=" in response_content:
+-                # Correction for Qwen improperly replacing '=' with '>' at the end of a parameter
+-                self.logger.warning(f"Fixing Qwen parameter formatting error.")
+-                response_content = response_content.replace("<parameter=command=","<parameter=command>")
++                self.logger.warning("Fixing Qwen parameter formatting error.")
++                response_content = re.sub(
++                    r"<parameter\s*=\s*command\s*=\s*([^>\n]*?)\s*>",
++                    r"<parameter=command>\1</parameter>",
++                    response_content,
++                )
+                 response.choices[0].message.content = response_content
+ 
+             self.response = response 
+@@ -720,4 +737,4 @@ class Agent:
+         )
+ 
+         self.logger.info(f"Agent completed in {time.time() - start_time} seconds.")
+-        return self.trajectory
+\ No newline at end of file
++        return self.trajectory
+diff --git a/src/r2egym/agenthub/config/sweagent/edit_non_fn_calling.yaml b/src/r2egym/agenthub/config/sweagent/edit_non_fn_calling.yaml
+index 91c37d4..9cdf7d8 100644
+--- a/src/r2egym/agenthub/config/sweagent/edit_non_fn_calling.yaml
++++ b/src/r2egym/agenthub/config/sweagent/edit_non_fn_calling.yaml
+@@ -6,11 +6,11 @@ system_prompt: |-
+ 
+   You have access to the following functions:
+ 
+-  ---- BEGIN FUNCTION #1: bash ----
++  ---- BEGIN FUNCTION #1: execute_bash ----
+   Description: Execute a bash command in the terminal.
+ 
+   Parameters:
+-    (1) command (string, required): The bash command to execute. Can be empty to view additional logs when previous exit code is `-1`. Can be `ctrl+c` to interrupt the currently running process.
++    (1) command (string, required): The bash command to execute. For example: `python my_script.py`.
+   ---- END FUNCTION #1 ----
+ 
+   ---- BEGIN FUNCTION #2: submit ----
+diff --git a/src/r2egym/agenthub/environment/env.py b/src/r2egym/agenthub/environment/env.py
+index 6d62a82..de55977 100644
+--- a/src/r2egym/agenthub/environment/env.py
++++ b/src/r2egym/agenthub/environment/env.py
+@@ -1,5 +1,8 @@
+ # repo_env.py
++import base64
++import json
+ import os
++import shlex
+ import time
+ from dataclasses import dataclass, field
+ from typing import Dict, Tuple, Any, Optional
+@@ -8,6 +11,8 @@ import gym
+ import logging
+ 
+ from r2egym.agenthub.action import Action
++from r2egym.agenthub.action.action import normalize_action_for_allowed_commands
++from r2egym.agenthub.tools.leaf import LEAF_TOOL_NAMES
+ from r2egym.agenthub.utils.log import get_logger
+ from r2egym.agenthub.observation import Observation
+ from r2egym.agenthub.runtime.docker import DockerRuntime
+@@ -237,9 +242,36 @@ class RepoEnv(gym.Env):
+ 
+         start_time = time.time()
+         try:
++            # Leaf tools use a native five-function protocol.  Keep them out of
++            # the legacy command registry so the existing r2egym/sweagent
++            # command sets and XML execution path remain unchanged.
++            leaf_name = next(
++                (name for name in LEAF_TOOL_NAMES if name.lower() == str(action.function_name).lower()),
++                None,
++            )
++            if leaf_name is not None:
++                if action.function_name != leaf_name:
++                    action = Action(leaf_name, dict(action.parameters))
++                payload = json.dumps(
++                    {
++                        "args": action.parameters,
++                        "tool": leaf_name,
++                    },
++                    ensure_ascii=False,
++                ).encode("utf-8")
++                encoded = base64.b64encode(payload).decode("ascii")
++                pipeline = (
++                    "printf %s "
++                    + shlex.quote(encoded)
++                    + " | python /usr/local/bin/_leaf_tool_runner -"
++                )
++                command = "bash -lc " + shlex.quote(pipeline)
++                return (*self.runtime.run(command, timeout=timeout), time.time() - start_time)
++
+             # Check if action is in allowed actions/commands
+-            action_name = action.function_name
+             allowed_cmds = [x.name for x in self.commands]
++            action = normalize_action_for_allowed_commands(action, allowed_cmds)
++            action_name = action.function_name
+             assert (
+                 action_name in allowed_cmds
+             ), f"Invalid Action: input action must be one of allowed actions \n Allowed actions: {allowed_cmds} \n Input action: {action_name}\t"
+diff --git a/src/r2egym/agenthub/runtime/docker.py b/src/r2egym/agenthub/runtime/docker.py
+index 321fad0..cf2c282 100644
+--- a/src/r2egym/agenthub/runtime/docker.py
++++ b/src/r2egym/agenthub/runtime/docker.py
+@@ -19,6 +19,7 @@ import datetime
+ import hashlib
+ import shutil
+ import uuid
++import shlex
+ 
+ import docker
+ import kubernetes
+@@ -772,8 +773,28 @@ class DockerRuntime(ExecutionEnvironment):
+             self.run("git config --global url.\"https://hk.gh-proxy.com/https://github.com/\".insteadOf \"https://github.com/\"")
+ 
+ 
+-            # commit_id = self.ds['base_commit']
+-            self.run("git fetch")
++            # SWE-smith images already carry the generated refs in normal training.
++            # A blind git fetch often waits for the full timeout over the remote
++            # Docker path, so only fetch when the requested ref is missing.
++            instance_id = str(self.ds["instance_id"])
++            instance_ref = shlex.quote(instance_id)
++            origin_instance_ref = shlex.quote(f"origin/{instance_id}")
++            _, ref_check_rc = self.run(
++                (
++                    f"git rev-parse --verify --quiet {instance_ref}^{{commit}} "
++                    f"|| git rev-parse --verify --quiet {origin_instance_ref}^{{commit}}"
++                ),
++                timeout=10,
++            )
++            if str(ref_check_rc) == "0":
++                self.logger.info(
++                    f"SWE-smith skipping git fetch; ref already exists: {self.ds['instance_id']}"
++                )
++            else:
++                self.logger.info(
++                    f"SWE-smith ref missing locally, fetching before checkout: {self.ds['instance_id']}"
++                )
++                self.run("git fetch")
+             self.run("git status")
+             self.run("git restore .")
+             self.run("git reset --hard")
+@@ -1120,6 +1141,21 @@ class DockerRuntime(ExecutionEnvironment):
+             return self._run_kubernetes(exec_code, timeout, args, workdir=exec_workdir)
+ 
+         command = f"timeout {timeout} {exec_code} {args}"
++        timing_enabled = os.environ.get("R2EGYM_TIMING", "").lower() in {"1", "true", "yes", "on"}
++        timing_start = time.monotonic()
++
++        def finish_with_timing(output: str, error_code: str) -> tuple[str, str]:
++            if timing_enabled:
++                elapsed = time.monotonic() - timing_start
++                code_preview = re.sub(r"\s+", " ", exec_code).strip()[:240]
++                msg = (
++                    f"R2E_TIMING command_elapsed={elapsed:.3f}s rc={error_code} "
++                    f"workdir={exec_workdir} code={code_preview!r}"
++                )
++                print(msg, flush=True)
++                self.logger.info(msg)
++            return output, error_code
++
+         self.logger.info(f"started submit command: {command}")
+         try:
+             if "lsp_daemon >" in command:
+@@ -1188,25 +1224,25 @@ class DockerRuntime(ExecutionEnvironment):
+ 
+             if error_code == 124:
+                 self.logger.error(f"Internal Timeout: {timeout}s")
+-                return f"The command took too long to execute (>{timeout}s)", "-1"
++                return finish_with_timing(f"The command took too long to execute (>{timeout}s)", "-1")
+ 
+             if error_code != 0:
+                 self.logger.error(
+                     f"Error: Exit code {error_code} \nError Message: {output}"
+                 )
+-                return output, f"Error: Exit code {error_code}"
++                return finish_with_timing(output, f"Error: Exit code {error_code}")
+ 
+             # Remove ANSI escape codes and \r characters
+             output = re.sub(r"\x1b\[[0-9;]*m|\r", "", output)
+-            return output, str(error_code)
++            return finish_with_timing(output, str(error_code))
+ 
+         ## timeout
+         except concurrent.futures.TimeoutError:
+             self.logger.error(f"Timeout: {timeout}s for command: {command}")
+-            return f"The command took too long to execute (>{timeout}s)", "-1"
++            return finish_with_timing(f"The command took too long to execute (>{timeout}s)", "-1")
+ 
+         except Exception as e:
+-            return f"Error: {repr(e)} for command: {command}", "-1"
++            return finish_with_timing(f"Error: {repr(e)} for command: {command}", "-1")
+ 
+     def demux_run(
+         self, code: str, timeout: int = CMD_TIMEOUT, args: str = "", workdir=None
+diff --git a/src/r2egym/agenthub/tools/_leaf_tool_runner.py b/src/r2egym/agenthub/tools/_leaf_tool_runner.py
+new file mode 100755
+index 0000000..1c7b214
+--- /dev/null
++++ b/src/r2egym/agenthub/tools/_leaf_tool_runner.py
+@@ -0,0 +1,225 @@
++"""Stdlib-only Leaf executor copied into each task pod."""
++
++import base64
++import glob as globlib
++import json
++import os
++import subprocess
++import sys
++from pathlib import Path
++from typing import Any, Dict
++
++
++def run_tool(name: str, arguments: Dict[str, Any]) -> str:
++    try:
++        if name == "Read":
++            return _read(arguments)
++        if name == "Write":
++            return _write(arguments)
++        if name == "Edit":
++            return _edit(arguments)
++        if name == "Glob":
++            return _glob(arguments)
++        if name == "Bash":
++            return _bash(arguments)
++        return f"Unknown tool: {name}"
++    except Exception as exc:
++        return f"{type(exc).__name__}: {exc}"
++
++
++def _read(arguments: Dict[str, Any]) -> str:
++    path = _path(arguments, "file_path")
++    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
++    offset = max(1, _optional_int(arguments.get("offset"), 1))
++    limit = _optional_int(arguments.get("limit"), 0)
++    end = len(lines) if limit <= 0 else min(len(lines), offset - 1 + limit)
++    selected = "\n".join(
++        f"{number}. {line}"
++        for number, line in enumerate(lines[offset - 1 : end], start=offset)
++    )
++    return _truncate(
++        f"{_display(path)}\n{selected}",
++        _int_env("LEAF_TOOL_OUTPUT_CHARS", 20000),
++    )
++
++
++def _write(arguments: Dict[str, Any]) -> str:
++    path = _path(arguments, "file_path")
++    content = str(arguments.get("content", ""))
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(content, encoding="utf-8")
++    return f"Wrote {_display(path)} ({len(content)} bytes)."
++
++
++def _edit(arguments: Dict[str, Any]) -> str:
++    path = _path(arguments, "file_path")
++    old = str(arguments.get("old_string") or "")
++    new = str(arguments.get("new_string") or "")
++    if not old:
++        raise ValueError("old_string must be non-empty")
++    text = path.read_text(encoding="utf-8", errors="replace")
++    count = text.count(old)
++    replace_all = _truthy(arguments.get("replace_all"))
++    if count == 0:
++        raise ValueError("old_string was not found")
++    if count != 1 and not replace_all:
++        raise ValueError(
++            f"old_string matched {count} times; set replace_all=true or use a "
++            "more specific old_string"
++        )
++    updated = text.replace(old, new) if replace_all else text.replace(old, new, 1)
++    path.write_text(updated, encoding="utf-8")
++    changed = count if replace_all else 1
++    suffix = "s" if changed != 1 else ""
++    return f"Edited {_display(path)} ({changed} replacement{suffix})."
++
++
++def _glob(arguments: Dict[str, Any]) -> str:
++    pattern = str(arguments.get("pattern") or "")
++    if not pattern:
++        raise ValueError("pattern is required")
++    root = _resolve(arguments.get("path") or ".")
++    matches = sorted(
++        _display(Path(match))
++        for match in globlib.glob(str(root / pattern), recursive=True)
++        if Path(match).is_file()
++    )
++    limit = max(1, _int_env("LEAF_GLOB_LIMIT", 1000))
++    shown = matches[:limit]
++    suffix = "" if len(matches) <= limit else f"\n... {len(matches) - limit} more files"
++    return "\n".join(shown) + suffix if shown else "No files matched."
++
++
++def _bash(arguments: Dict[str, Any]) -> str:
++    command = str(arguments.get("command") or "")
++    if not command:
++        raise ValueError("command is required")
++    timeout = _timeout_seconds(arguments)
++    try:
++        completed = subprocess.run(
++            ["/bin/bash", "-lc", command],
++            stdout=subprocess.PIPE,
++            stderr=subprocess.PIPE,
++            universal_newlines=True,
++            timeout=max(0.1, timeout),
++            check=False,
++        )
++        return _truncate(
++            f"Exit code: {completed.returncode}\n"
++            f"STDOUT:\n{completed.stdout or ''}\n"
++            f"STDERR:\n{completed.stderr or ''}",
++            _int_env("LEAF_BASH_OUTPUT_CHARS", 30000),
++        )
++    except subprocess.TimeoutExpired as exc:
++        return _truncate(
++            f"Timed out after {timeout:.1f}s\n"
++            f"STDOUT:\n{_output(exc.stdout)}\nSTDERR:\n{_output(exc.stderr)}",
++            _int_env("LEAF_BASH_OUTPUT_CHARS", 30000),
++        )
++
++
++def _timeout_seconds(arguments: Dict[str, Any]) -> float:
++    if arguments.get("timeout_ms") is not None:
++        return max(0.1, float(arguments["timeout_ms"]) / 1000.0)
++    raw = arguments.get("timeout")
++    if raw is None:
++        return float(_int_env("LEAF_BASH_TIMEOUT_SEC", 120))
++    value = float(raw)
++    return max(0.1, value / 1000.0 if value > 1000 else value)
++
++
++def _path(arguments: Dict[str, Any], key: str) -> Path:
++    value = arguments.get(key) or arguments.get("path")
++    if not value:
++        raise ValueError(f"{key} is required")
++    return _resolve(value)
++
++
++def _resolve(value: Any) -> Path:
++    root = Path.cwd().resolve()
++    path = Path(str(value)).expanduser()
++    resolved = path.resolve() if path.is_absolute() else (root / path).resolve()
++    if resolved != root and root not in resolved.parents:
++        raise PermissionError("path escapes repository root")
++    return resolved
++
++
++def _display(path: Path) -> str:
++    try:
++        return path.resolve().relative_to(Path.cwd().resolve()).as_posix()
++    except ValueError:
++        return str(path)
++
++
++def _int_env(name: str, default: int) -> int:
++    value = os.environ.get(name)
++    if value in (None, ""):
++        return default
++    return int(value)
++
++
++def _optional_int(value: Any, default: int) -> int:
++    if value in (None, ""):
++        return default
++    return int(value)
++
++
++def _truthy(value: Any) -> bool:
++    if isinstance(value, bool):
++        return value
++    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
++
++
++def _truncate(value: str, limit: int) -> str:
++    if limit <= 0 or len(value) <= limit:
++        return value
++    return f"{value[:limit]}\n[truncated {len(value) - limit} chars]"
++
++
++def _output(value: Any) -> str:
++    if value is None:
++        return ""
++    return value.decode(errors="replace") if isinstance(value, bytes) else str(value)
++
++
++def main() -> int:
++    try:
++        payload = _load_payload()
++        workdir = payload.get("workdir")
++        if workdir:
++            os.chdir(str(workdir))
++        raw_arguments = payload.get("args")
++        if raw_arguments is None:
++            raw_arguments = payload.get("arguments")
++        result = run_tool(
++            str(payload.get("tool") or ""),
++            raw_arguments if isinstance(raw_arguments, dict) else {},
++        )
++    except Exception as exc:
++        result = f"leaf tool_runner error: {type(exc).__name__}: {exc}"
++    print(result, end="")
++    return 0
++
++
++def _load_payload() -> Dict[str, Any]:
++    if len(sys.argv) > 1 and sys.argv[1] not in ("", "-"):
++        raw = Path(sys.argv[1]).read_text(encoding="utf-8")
++    else:
++        raw = sys.stdin.read()
++    try:
++        payload = json.loads(raw)
++    except json.JSONDecodeError as direct_error:
++        # The host environment transports the JSON payload as base64 to keep
++        # shell quoting safe.  Accept raw JSON as well for direct invocation.
++        try:
++            decoded = base64.b64decode(raw.strip(), validate=True).decode("utf-8")
++            payload = json.loads(decoded)
++        except Exception:
++            raise direct_error
++    if not isinstance(payload, dict):
++        raise ValueError("payload must be a JSON object")
++    return payload
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/src/r2egym/agenthub/tools/leaf.py b/src/r2egym/agenthub/tools/leaf.py
+new file mode 100644
+index 0000000..eb5badb
+--- /dev/null
++++ b/src/r2egym/agenthub/tools/leaf.py
+@@ -0,0 +1,98 @@
++"""Leaf tool schemas imported from the open-source FrogNano harness.
++
++The implementation intentionally keeps the public five-tool protocol stable so
++training and evaluation can share exactly the same names and JSON schema.
++"""
++
++from __future__ import annotations
++
++SYSTEM_PROMPT = (
++    "You are a software-engineering agent working in a checked-out repository.\n"
++    "Use the available tools to inspect files, make focused edits, and run commands.\n"
++    "Solve the task, validate when practical, then give a brief final answer."
++)
++
++LEAF_TOOL_NAMES = ("Read", "Write", "Edit", "Glob", "Bash")
++LEAF_SCHEMA_VERSION = "frognano-leaf-v1"
++
++OPENAI_TOOLS = [
++    {
++        "type": "function",
++        "function": {
++            "name": "Read",
++            "description": "Read a text file. Returns numbered lines.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "file_path": {"type": "string", "description": "Path to the file to read."},
++                    "offset": {"type": "integer", "description": "Optional 1-based starting line."},
++                    "limit": {"type": "integer", "description": "Optional maximum number of lines."},
++                },
++                "required": ["file_path"],
++            },
++        },
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "Write",
++            "description": "Write a complete file, creating parent directories when needed.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "file_path": {"type": "string", "description": "Path to write."},
++                    "content": {"type": "string", "description": "Full file contents."},
++                },
++                "required": ["file_path", "content"],
++            },
++        },
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "Edit",
++            "description": "Replace an exact string in a text file.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "file_path": {"type": "string", "description": "Path to edit."},
++                    "old_string": {"type": "string", "description": "Exact text to replace."},
++                    "new_string": {"type": "string", "description": "Replacement text."},
++                    "replace_all": {"type": "boolean", "description": "Replace every occurrence instead of requiring one match."},
++                },
++                "required": ["file_path", "old_string", "new_string"],
++            },
++        },
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "Glob",
++            "description": "Find files by glob pattern.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "pattern": {"type": "string", "description": "Glob pattern, e.g. **/*.py."},
++                    "path": {"type": "string", "description": "Optional directory to search from."},
++                },
++                "required": ["pattern"],
++            },
++        },
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "Bash",
++            "description": "Run a shell command in the repository workdir.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "command": {"type": "string", "description": "Command to run."},
++                    "description": {"type": "string", "description": "Short description of the command."},
++                    "timeout": {"type": "number", "description": "Optional timeout in seconds."},
++                },
++                "required": ["command"],
++            },
++        },
++    },
++]

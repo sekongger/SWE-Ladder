@@ -1,0 +1,43 @@
+{
+  "abs_threshold": 0.6702322125434876,
+  "calibrated_on": "base",
+  "calibration_percentile": 90,
+  "by_step": {
+    "base": {
+      "student_entropy_fork_rate_abs": 0.10003524850193866,
+      "paper_fork_rate_wa": 0.001973916108565386,
+      "paper_fork_rate_sr": 0.0021854071201973914,
+      "paper_lock_rate_wa": 0.9292210081071555,
+      "paper_lock_rate_sr": 0.9283045470567501,
+      "H_mean": 0.15421809152234683,
+      "n_positions": 14185
+    },
+    "30": {
+      "student_entropy_fork_rate_abs": 0.09298554811420515,
+      "paper_fork_rate_wa": 0.001973916108565386,
+      "paper_fork_rate_sr": 0.0021854071201973914,
+      "paper_lock_rate_wa": 0.9292210081071555,
+      "paper_lock_rate_sr": 0.9283045470567501,
+      "H_mean": 0.13810142484994603,
+      "n_positions": 14185
+    },
+    "50": {
+      "student_entropy_fork_rate_abs": 0.08946069792033838,
+      "paper_fork_rate_wa": 0.001973916108565386,
+      "paper_fork_rate_sr": 0.0021854071201973914,
+      "paper_lock_rate_wa": 0.9292210081071555,
+      "paper_lock_rate_sr": 0.9283045470567501,
+      "H_mean": 0.12999792162441876,
+      "n_positions": 14185
+    },
+    "70": {
+      "student_entropy_fork_rate_abs": 0.09009517095523441,
+      "paper_fork_rate_wa": 0.001973916108565386,
+      "paper_fork_rate_sr": 0.0021854071201973914,
+      "paper_lock_rate_wa": 0.9292210081071555,
+      "paper_lock_rate_sr": 0.9283045470567501,
+      "H_mean": 0.13134892823827196,
+      "n_positions": 14185
+    }
+  }
+}

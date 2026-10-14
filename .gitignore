@@ -1,0 +1,63 @@
+# Site-local configuration: paths, hosts, keys. Never committed.
+training/configs/site.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Credentials and keys. Nothing of the sort belongs in this repository; this is a
+# backstop, not a policy.
+*.pem
+*.key
+id_rsa*
+.netrc
+
+# Run artifacts. Training and evaluation write here; none of it is source.
+output/
+train_output/
+logs/
+*.log
+wandb/
+nohup.out
+*.pid
+
+# Per-trajectory dumps the analysis scripts write next to their aggregates. The
+# aggregates ship; the per-trajectory expansions are regenerable from eval output.
+analysis/**/*_per_traj.json
+
+# Data and model weights are built or downloaded, never committed. The two
+# directories that DO ship under data/ are re-included below.
+data/*
+!data/README.md
+!data/samples/
+!data/stage_router_gold/
+*.parquet
+*.ckpt
+*.safetensors
+*.bin
+
+# The staged-record samples and the router gold set are small JSON/JSONL and must
+# survive the blanket rules above.
+!data/samples/**/*.jsonl
+!data/stage_router_gold/*.json
+!data/stage_router_gold/*.jsonl
+!data/stage_router_gold/*.py
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store

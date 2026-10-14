@@ -1,0 +1,259 @@
+# Stage ladder leg 1 at 8B on CUDA (4 GPUs, colocated) -- LOCALIZE, rule router.
+#
+# The 8B arm lives on CUDA: the colocated Ascend engine could not be made to fit an 8B
+# policy plus a reference plus the rollout KV cache on one node (see docs/TRAINING.md).
+# Launch with training/run_gpu_train_from_yaml.sh, which pins trainer.device=cuda.
+#
+# The base model is a YaRN-extended Qwen3-8B; the context envelope below assumes it.
+#
+# Machine-specific paths below are placeholders. Render before launching:
+#   scripts/tools/render_config.py training/configs/ladder_8b_cuda_leg1_loc.yaml \
+#       --site training/configs/site.env -o /tmp/run.yaml
+# then: bash <rllm>/examples/swe/run_gpu_train_from_yaml.sh /tmp/run.yaml
+# Shared memory/length tuning is explained once in docs/TRAINING.md.
+runtime:
+  conda_env: '{{CONDA_ENV}}'
+  entrypoint: DeepSWE_RL/rllm/examples/swe/train_entrypoint_gpu.sh
+  log_dir: output/ladder_8b_cuda_leg1_loc
+  log_prefix: ladder_8b_cuda_leg1_loc
+  clean_ray_before_start: true
+env:
+  PYTHONNOUSERSITE: '1'
+  # Ray startup is unreliable on this box because ~8500 unreapable zombie processes
+  # (container PID 1 = `tail -f /dev/null` never reaps) slow the per-node metrics/reporter
+  # agent to ~31s, while the raylet's default wait for the agent's port file is ~15s -> the
+  # raylet hits `Check failed ... Timed out waiting for file metrics_agent_port`
+  # (node_manager.cc:3309) and the node never registers ("node timed out during startup").
+  # RAY_agent_register_timeout_ms is the raylet-side knob for that wait; raise it well above
+  # the agent's real startup time. RAY_raylet_start_wait_time_s is the driver-side wait for
+  # node registration. (Proper fix is a container restart with --init to reap zombies.)
+  # 2026-08-13: zombie count reached ~87k (10x the ~8.5k these were first tuned for), so the
+  # metrics-agent scan now takes ~5min and blew past the old 180s/300s -> "node timed out
+  # during startup". Scaled to ~900s to cover it. If this still times out, the container must
+  # be restarted with --init (UID 0) to reap the 87k PID-1-orphaned zombies -- can't be reaped
+  # from inside. Retry is safe: all NPUs free, no live Ray holds ports after the failed boot.
+  RAY_agent_register_timeout_ms: '900000'
+  RAY_raylet_start_wait_time_s: '900'
+  RAY_memory_monitor_refresh_ms: '0'
+  ASCEND_RT_VISIBLE_DEVICES: ''
+  CUDA_DEVICE_ORDER: PCI_BUS_ID
+  # DO NOT set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True here: vLLM sleep
+  # mode's CuMemAllocator hard-asserts against it (cumem.py:
+  # `assert "expandable_segments:True" not in conf`) and the engine dies at init
+  # (launch34, 2026-09-08). Sleep mode is essential for colocated HBM dance.
+  # If update-phase OOM appears at the 57344 budget on the 85.7GB cards, use
+  # ACTOR_ENTROPY_CHUNK_SIZE 512->256 or MODEL_ENABLE_ACTIVATION_OFFLOAD=True.
+  CUDA_VISIBLE_DEVICES: '4,5,2,6'
+
+  # ---- devices, layout and backend runtime ----
+  TRAINER_LAYOUT_MODE: colocated
+  HYBRID_ENGINE: 'True'
+  HCCL_OP_EXPANSION_MODE: AIV
+  ROLLOUT_HCCL_OP_EXPANSION_MODE: AIV
+  TASK_QUEUE_ENABLE: '1'
+  PYTORCH_NPU_ALLOC_CONF: max_split_size_mb:256
+  TRAIN_N_GPUS_PER_NODE: '4'
+  TRAIN_DEVICE: cuda
+
+  # ---- policy weights and resume ----
+  MODEL_PATH: '{{BASE_MODEL_8B}}'
+  TRAINER_RESUME_MODE: disable
+  TRAINER_RESUME_FROM_PATH: 'null'
+  TRAINER_RESUME_LOAD_DATALOADER: 'False'
+  TRAINER_STAGE_GLOBAL_STEP_OFFSET: '0'
+  OPD_RENDER_PROMPT_AT_RUNTIME: '1'
+
+  # ---- logging ----
+  TRAIN_LOGGERS: console,tensorboard,wandb
+  WANDB_ENABLE: '1'
+  WANDB_MODE: offline
+  WANDB_INIT_TIMEOUT: '300'
+
+  # ---- RL algorithm and batch shape ----
+  RL_ALGO: grpo
+  TRAIN_BATCH_SIZE: '16'
+  PPO_MINI_BATCH_SIZE: '1'
+  ACTOR_PPO_MICRO_BATCH_SIZE_PER_GPU: '1'
+  LOGPROB_MICRO_BATCH_SIZE_PER_GPU: '1'
+  ROLLOUT_N: '4'
+  # NPU legacy was 16 ("Ascend PagedAttention needs workspace HBM outside the KV
+  # cache reservation" — pure Ascend constraint, N/A on GPU). 2026-09-08: 64 =
+  # single wave for the whole 64-traj step batch (no wave-tail idle); KV fed by
+  # ROLLOUT_GPU_MEMORY_UTILIZATION 0.50. Trade-off: 64 histories pressure the
+  # prefix-cache LRU (partial re-prefill between turns); judge via
+  # timing_s/collect_trajectory in step metrics.
+
+  # ---- rollout engine (vLLM) ----
+  ROLLOUT_MAX_NUM_SEQS: '64'
+  ACTOR_PARAM_OFFLOAD: 'False'
+  ACTOR_OPTIMIZER_OFFLOAD: 'False'
+  ROLLOUT_ACTIVE_TRAJECTORIES: '64'
+  ROLLOUT_CONTEXT_WINDOW_SAFETY_MARGIN: '2048'
+  # Fix#2: relax per-step generation caps so a single large str_replace/insert is not
+  # truncated mid-edit (a truncated edit fails to apply -> empty patch). Total budget
+  # MAX_RESPONSE_LENGTH stays 30840, so HBM envelope is unchanged.
+  ROLLOUT_PER_STEP_MAX_TOKENS: '8192'
+  ROLLOUT_FIRST_STEP_MAX_TOKENS: '4096'
+  ROLLOUT_INVALID_TOOL_CALL_MAX_TOKENS: '2048'
+  ROLLOUT_INVALID_TOOL_CALL_RETRY_LIMIT: '12'
+  ROLLOUT_STOP_AFTER_FUNCTION_CALL: 'True'
+  ROLLOUT_GPU_MEMORY_UTILIZATION: '0.50'
+  ROLLOUT_ENFORCE_EAGER: 'False'
+  # Keep vLLM sleep/cache release enabled before actor logprob/update.
+  # gpu_memory_utilization caps vLLM cache reservation, not total colocated HBM.
+  ROLLOUT_FREE_CACHE_ENGINE: 'True'
+  ROLLOUT_ENABLE_SLEEP_MODE: 'True'
+  PIPELINE_TRAIN_AFTER_FULL_ROLLOUT: '1'
+  PIPELINE_LENGTH_BUCKET_ROLLOUTS: '1'
+  ROLLOUT_ENABLE_CHUNKED_PREFILL: 'True'
+  ROLLOUT_VLLM_SPECULATIVE_CONFIG: method:ngram,num_speculative_tokens:3,prompt_lookup_max:5,prompt_lookup_min:2
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '1800'
+  ROLLOUT_ASCEND_SCHEDULER_ENABLE: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_ENABLE_CHUNKED_PREFILL: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_MAX_LONG_PARTIAL_PREFILLS: '2147483647'
+  ROLLOUT_ASCEND_SCHEDULER_LONG_PREFILL_TOKEN_THRESHOLD: '2147483647'
+  # NPU legacy had prefix caching off. On GPU vLLM V1 it is the default (entry
+  # script default True) and the biggest rollout lever: agent episodes have up to
+  # 88 turns re-prefilling the full growing history each turn. Safe with weight
+  # sync: vllm_rollout.update_weights() calls clear_kv_cache after every sync.
+  ROLLOUT_ENABLE_PREFIX_CACHING: 'True'
+  ROLLOUT_BLOCK_SIZE: '128'
+  ROLLOUT_CUDAGRAPH_CAPTURE_SIZES: '[64,32,16,8,4,2,1]'
+  RLLM_FORCE_VLLM_WEIGHT_SYNC_SHM: '0'
+  RLLM_DISABLE_FSDP_SYNC_MODULE_STATES: '0'
+  TOTAL_EPOCHS: '2'
+  ENABLE_VALIDATION: '0'
+  MEMORY_PROFILE: stable
+
+  # ---- memory and parallelism ----
+  MODEL_USE_REMOVE_PADDING: 'True'
+  MODEL_ENABLE_ACTIVATION_OFFLOAD: 'False'
+  ULYSSES_SEQUENCE_PARALLEL_SIZE: '4'
+  ACTOR_ENTROPY_CHECKPOINTING: 'True'
+  ACTOR_ENTROPY_CHUNK_SIZE: '512'
+  # Fix#3: small entropy bonus to resist the entropy/length collapse (resp_len 24k->5k,
+  # steps 65->10) that drove early give-up and empty patches. Was hardcoded 0.0.
+  ACTOR_ENTROPY_COEFF: '0.005'
+  ROLLOUT_TP_SIZE: '4'
+  # NPU legacy 'False' = single-op Adam (worked around Ascend aicpu op timeout at
+  # long lengths). With PPO_MINI_BATCH_SIZE=1 there are 64 optimizer steps/train
+  # step, so single-op mode = tens of thousands of tiny kernel launches per step.
+  # 'auto' = no override -> torch CUDA default (foreach fused). 2026-09-08.
+  ACTOR_OPTIMIZER_FOREACH: 'auto'
+  ACTOR_USE_DYNAMIC_BSZ: 'False'
+  LOGPROB_USE_DYNAMIC_BSZ: 'False'
+  PG_LOSS_AGG_MODE: seq-mean-token-mean
+
+  # ---- staged privileged distillation ----
+  OPSD_ENABLE: '1'
+  # Fix#3: strengthen the reverse-KL anchor to the ref policy. Was 0.04 (1/10 of the
+  # script default 0.4); too weak to hold the policy, reverse_kl drifted 0.22->0.63.
+  OPSD_LOSS_COEF: '0.15'
+  OPSD_POLICY_LOSS_MODE: pg_plus_opsd
+  OPSD_TEACHER_SOURCE: ref_policy
+  OPSD_REF_LOAD_CHECKPOINT_FROM_RESUME: 'False'
+  OPSD_MAX_TOKENS_PER_SAMPLE: '0'
+  OPSD_ROUTE_SUCCESS_GRPO_FAILURE_OPSD: '0'
+  OPSD_FAIL_OPEN: 'False'
+  USE_RLSD: 'False'
+  USE_OPSD_KL: 'True'
+  # RLSD is an earlier importance-weighted variant kept for reference; with
+  # USE_RLSD=False every RLSD_* knob below is inert.
+  RLSD_WEIGHT_CLIP_EPS: '0.2'
+  RLSD_DELTA_CLIP: '5.0'
+  RLSD_USE_OLD_STUDENT_LOGP: 'True'
+  RLSD_USE_ROLLOUT_LOGP_AS_STUDENT_PRIOR: 'True'
+  RLSD_TEACHER_NO_GRAD: 'True'
+  RLSD_LOG_STATS: 'False'
+
+  # ---- reward shaping ----
+  EXPLORATION_TOOL_REWARD_COEF: '0.0'
+  EXPLORATION_TOOL_REWARD_MAX: '0.0'
+  EXPLORATION_TOOL_MIN_CALLS: '1'
+  EXPLORATION_TOOL_MISSING_PENALTY: '0.0'
+  EXPLORATION_NO_TOOL_CALL_PENALTY: '0.0'
+  EXPLORATION_REWARD_CLAMP_MIN: '-1.0'
+  EXPLORATION_REWARD_CLAMP_MAX: '1.0'
+  # Fix#1: distinguish "long failure" from "early give-up".
+  # - Early give-up (voluntary finish, no solve, no source edit -> empty patch) is penalized
+  #   via GIVE_UP_EMPTY_PATCH_PENALTY.
+  # - Length-truncated solves (TRUNCATION: response cut mid-generation at MAX_RESPONSE_LENGTH)
+  #   keep the 0.5 discount so full reward does not reinforce max-length/truncated generations
+  #   and drive runaway length (len_clip was already climbing). Only affects *solved* overlong
+  #   rollouts (unsolved stay 0); ENV_DONE give-ups are unaffected (not a soft-overlong reason).
+  SOFT_OVERLONG_REWARD_FACTOR: '0.5'
+  # Ablation: give-up penalty removed (was -0.2) to isolate its effect. Evidence shows the
+  # repeated-failed-edit looping is inherent to the base model (base eval: 67% of edit
+  # failures are exact repeats), NOT caused by this penalty. Keep 0.0 for the clean A/B run;
+  # compare at matched training steps against the -0.2 run.
+  GIVE_UP_EMPTY_PATCH_PENALTY: '-0.2'
+  # Executable-repair regime: force the execution-capable command set so training uses the
+  # same python/pytest/pip-enabled bash tools as the eval scaffold (prevents a silent switch
+  # to the no-execution command set if runtime.generic_sandbox is ever True).
+  RLLM_R2EGYM_FORCE_EXECUTION_COMMANDS: '1'
+  # End-to-end OPSD per-step stage routing (3A engine per-token labels + 3B transform
+  # passthrough + 3C ref-worker multi-context scoring & per-token splice). LOC/REPRO tokens
+  # use a ref-policy teacher with the exact student prompt; only PATCH tokens receive a
+  # privileged evidence block. OPSD_STAGE_BACKTRACK=N: N consecutive exploration steps move
+  # the phase back to localization (0 = monotonic/forward-only).
+
+  # ---- stage router ----
+  OPSD_STAGE_ROUTING: '1'
+  OPSD_STAGE_BACKTRACK: '3'
+  OPSD_PRIVILEGED_STAGES: causal_localization
+  # End-to-end student prompt: render the unified agentic prompt (= eval scaffold's
+  # edit_non_fn_calling prompt) instead of the per-stage staged prompt, so training is
+  # truly end-to-end AND the student prompt matches eval. OPD teacher variants are built as
+  # this same prompt + each stage's privileged block only. Requires OPD_RENDER_PROMPT_AT_RUNTIME=1
+  # (already set above).
+  OPD_END_TO_END_PROMPT: '1'
+
+  # ---- agent scaffold and environment ----
+  SWE_SCAFFOLD: openhands
+  OPD_PROMPT_TEMPLATE_DIR: '{{RLLM_ROOT}}/rllm/opd/prompt_templates_openhands'
+  VLLM_ATTENTION_BACKEND: FLASHINFER
+  CUDA_HOME: '{{CUDA_ROOT}}/targets/x86_64-linux'
+  LD_LIBRARY_PATH: '{{CUDA_ROOT}}/targets/x86_64-linux/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib/x86_64-linux-gnu:/lib'
+  FLASHINFER_CACHE_DIR: /tmp/flashinfer-cache
+  PATH: '{{CUDA_ROOT}}/bin:{{CUDA_ROOT}}/targets/x86_64-linux/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+  VLLM_USE_FLASHINFER_SAMPLER: '0'
+  CHECKPOINT_ENGINE_BUCKET_MB: '4096'
+  RLLM_DISABLE_RUNTIME_ENV_PIP: '1'
+  R2EGYM_DOCKER_MODE: remote
+  R2EGYM_DOCKER_HOST: tcp://127.0.0.1:23750
+  DOCKER_HOST: tcp://127.0.0.1:23750
+  R2EGYM_TIMING: '1'
+  PREPULL_DATASET_IMAGES: '0'
+
+  # ---- run identity and data ----
+  PROJECT_NAME: swe_ladder
+  EXPERIMENT_NAME: ladder-8b-cuda-leg1-loc
+  TRAIN_DATASET: '{{DATA_ROOT}}/staged_opd_joint_swerebench500_r2e200_swegym100_swesmith500_task_intersection_enriched/patch_generation/train_verl.parquet'
+  VAL_DATASET: '{{DATA_ROOT}}/staged_opd_joint_swerebench500_r2e200_swegym100_swesmith500_task_intersection_enriched/patch_generation/valid_verl.parquet'
+  WANDB_PROJECT: swe_ladder
+  WANDB_TAGS: opsd+grpo,router-rule,privilege-causal_localization,scaffold-openhands,qwen3-8b,4xcuda-colocated
+
+  # ---- episode budget and length envelope ----
+  AGENT_MAX_STEPS: '88'
+  # 64-way concurrency stretches per-trajectory wall time (shared decode/KV),
+  # so the 5400s NPU-era timeout would waste more rollouts; 7200s compensates.
+  AGENT_TRAJECTORY_TIMEOUT: '7200'
+  MAX_PROMPT_LENGTH: '12288'
+  MAX_RESPONSE_LENGTH: '45056'
+  PPO_MAX_TOKEN_LEN_PER_GPU: '57344'
+  LOGPROB_MAX_TOKEN_LEN_PER_GPU: '57344'
+  ROLLOUT_MAX_MODEL_LEN: '57344'
+  AGENT_MAX_RESPONSE_TOKENS_FOR_TRAINING: '45056'
+  ROLLOUT_MAX_NUM_BATCHED_TOKENS: '57344'
+  OPSD_MAX_RESPONSE_TOKENS_FOR_TRAINING: '45056'
+  RLSD_ACTOR_MAX_PACKED_CONTEXT_TOKENS: '57344'
+  RLSD_LAMBDA: '0.5'
+  RLSD_LAMBDA_INIT: '0.5'
+  RLSD_LAMBDA_FINAL: '0.1'
+  RLSD_LAMBDA_DECAY_STEPS: '100'
+
+  # ---- per-stage auxiliary rewards (off: end-to-end reward only) ----
+  CAUSAL_LOCALIZATION_REWARD_ENABLE: '0'
+  DISABLE_EXECUTION_REWARD: '0'
+  ISSUE_REPRODUCTION_EVAL_ENABLE: '0'
+  ISSUE_REPRODUCTION_REWARD_ENABLE: '0'

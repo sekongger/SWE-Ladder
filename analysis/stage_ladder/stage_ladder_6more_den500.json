@@ -1,0 +1,44 @@
+{
+ "noroute_gs30": {
+  "n": 500,
+  "loc_recall_over500": 0.3808285714285714,
+  "reproduce": 0.574,
+  "verify": 0.176,
+  "solve": 0.116
+ },
+ "noroute_gs50": {
+  "n": 501,
+  "loc_recall_over500": 0.4033285714285714,
+  "reproduce": 0.572,
+  "verify": 0.196,
+  "solve": 0.124
+ },
+ "noroute_gs70": {
+  "n": 500,
+  "loc_recall_over500": 0.38006666666666666,
+  "reproduce": 0.694,
+  "verify": 0.162,
+  "solve": 0.116
+ },
+ "clf_gs30": {
+  "n": 485,
+  "loc_recall_over500": 0.4241619047619048,
+  "reproduce": 0.362,
+  "verify": 0.086,
+  "solve": 0.118
+ },
+ "clf_r50_gs60": {
+  "n": 500,
+  "loc_recall_over500": 0.3575952380952381,
+  "reproduce": 0.572,
+  "verify": 0.128,
+  "solve": 0.112
+ },
+ "clf2_gs70": {
+  "n": 430,
+  "loc_recall_over500": 0.43476190476190474,
+  "reproduce": 0.356,
+  "verify": 0.126,
+  "solve": 0.116
+ }
+}

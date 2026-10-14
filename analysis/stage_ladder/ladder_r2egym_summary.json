@@ -1,0 +1,92 @@
+{
+ "base": {
+  "n": 500,
+  "localize": 0.766,
+  "loc_recall": 0.3363285714285714,
+  "reproduce": 0.594,
+  "patch_nonempty": 0.864,
+  "verify": 0.226,
+  "solve": 0.096,
+  "steps_mean": 26.482
+ },
+ "grpo_gs30": {
+  "n": 497,
+  "localize": 0.7887323943661971,
+  "loc_recall": 0.4112963495257258,
+  "reproduce": 0.48490945674044267,
+  "patch_nonempty": 0.8088531187122736,
+  "verify": 0.193158953722334,
+  "solve": 0.10462776659959759,
+  "steps_mean": 82.65191146881288
+ },
+ "noroute_gs30": {
+  "n": 500,
+  "localize": 0.712,
+  "loc_recall": 0.3808285714285714,
+  "reproduce": 0.574,
+  "patch_nonempty": 0.916,
+  "verify": 0.176,
+  "solve": 0.116,
+  "steps_mean": 57.696
+ },
+ "noroute_gs50": {
+  "n": 501,
+  "localize": 0.7265469061876247,
+  "loc_recall": 0.4025235243798118,
+  "reproduce": 0.5708582834331337,
+  "patch_nonempty": 0.9161676646706587,
+  "verify": 0.19560878243512975,
+  "solve": 0.12375249500998003,
+  "steps_mean": 39.68063872255489
+ },
+ "noroute_gs70": {
+  "n": 500,
+  "localize": 0.716,
+  "loc_recall": 0.38006666666666666,
+  "reproduce": 0.694,
+  "patch_nonempty": 0.942,
+  "verify": 0.162,
+  "solve": 0.116,
+  "steps_mean": 52.99
+ },
+ "routing_gs30": {
+  "n": 500,
+  "localize": 0.754,
+  "loc_recall": 0.44566190476190476,
+  "reproduce": 0.59,
+  "patch_nonempty": 0.92,
+  "verify": 0.202,
+  "solve": 0.132,
+  "steps_mean": 33.98
+ },
+ "routing_gs50": {
+  "n": 500,
+  "localize": 0.766,
+  "loc_recall": 0.4468285714285714,
+  "reproduce": 0.65,
+  "patch_nonempty": 0.916,
+  "verify": 0.274,
+  "solve": 0.142,
+  "steps_mean": 41.988
+ },
+ "routing_gs70": {
+  "n": 496,
+  "localize": 0.7459677419354839,
+  "loc_recall": 0.4401833717357911,
+  "reproduce": 0.5866935483870968,
+  "patch_nonempty": 0.9334677419354839,
+  "verify": 0.2560483870967742,
+  "solve": 0.14112903225806453,
+  "steps_mean": 45.167338709677416
+ },
+ "routing_gs90": {
+  "n": 500,
+  "localize": 0.758,
+  "loc_recall": 0.46709523809523806,
+  "reproduce": 0.66,
+  "patch_nonempty": 0.942,
+  "verify": 0.268,
+  "solve": 0.156,
+  "steps_mean": 42.456
+ }
+}

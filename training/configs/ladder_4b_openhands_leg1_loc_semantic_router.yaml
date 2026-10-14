@@ -1,0 +1,187 @@
+# Router ablation: leg 1 (LOCALIZE) with the semantic LLM router instead of the rules.
+#
+# A clean A/B against ladder_4b_openhands_leg1_loc.yaml -- same scaffold, same model,
+# same length and memory budget, same privileged stage, 30 steps from base. The router
+# is the only variable.
+#
+# The semantic router calls an OpenAI-compatible endpoint per step window and falls
+# back to the rule state machine on any API failure, so a dead endpoint degrades the
+# run to the rule-router arm rather than killing it.
+#
+# Export OPSD_STAGE_API_KEY in the launching shell; it is deliberately not a config key.
+#
+# Machine-specific paths below are placeholders. Render before launching:
+#   scripts/tools/render_config.py training/configs/ladder_4b_openhands_leg1_loc_semantic_router.yaml \
+#       --site training/configs/site.env -o /tmp/run.yaml
+# then: bash <rllm>/examples/swe/run_npu_train_from_yaml.sh /tmp/run.yaml
+# Shared memory/length tuning is explained once in docs/TRAINING.md.
+runtime:
+  conda_env: '{{CONDA_ENV}}'
+  entrypoint: DeepSWE_RL/rllm/examples/swe/train_entrypoint_npu.sh
+  log_dir: output/ladder_4b_openhands_leg1_loc_semantic_router
+  log_prefix: ladder_4b_openhands_leg1_loc_semantic_router
+  clean_ray_before_start: true
+env:
+  PYTHONNOUSERSITE: '1'
+  RAY_agent_register_timeout_ms: '900000'
+  RAY_raylet_start_wait_time_s: '900'
+  ASCEND_RT_VISIBLE_DEVICES: 0,1,2,3,4,5,6,7
+  NPU_VISIBLE_DEVICES: 0,1,2,3,4,5,6,7
+
+  # ---- devices, layout and backend runtime ----
+  TRAINER_LAYOUT_MODE: colocated
+  HYBRID_ENGINE: 'True'
+  HCCL_OP_EXPANSION_MODE: AIV
+  ROLLOUT_HCCL_OP_EXPANSION_MODE: AIV
+  TASK_QUEUE_ENABLE: '1'
+  PYTORCH_NPU_ALLOC_CONF: max_split_size_mb:256
+  TRAIN_N_GPUS_PER_NODE: '8'
+  TRAIN_DEVICE: npu
+
+  # ---- policy weights and resume ----
+  MODEL_PATH: '{{BASE_MODEL_4B}}'
+  TRAINER_RESUME_MODE: disable
+  TRAINER_RESUME_FROM_PATH: 'null'
+  TRAINER_RESUME_LOAD_DATALOADER: 'False'
+  TRAINER_STAGE_GLOBAL_STEP_OFFSET: '0'
+  TRAINER_TOTAL_TRAINING_STEPS: '30'
+  OPD_RENDER_PROMPT_AT_RUNTIME: '1'
+
+  # ---- logging ----
+  TRAIN_LOGGERS: console,tensorboard,wandb
+  WANDB_ENABLE: '1'
+  WANDB_MODE: online
+  WANDB_INIT_TIMEOUT: '300'
+
+  # ---- RL algorithm and batch shape ----
+  RL_ALGO: grpo
+  TRAIN_BATCH_SIZE: '16'
+  PPO_MINI_BATCH_SIZE: '1'
+  ACTOR_PPO_MICRO_BATCH_SIZE_PER_GPU: '1'
+  LOGPROB_MICRO_BATCH_SIZE_PER_GPU: '1'
+  ROLLOUT_N: '4'
+
+  # ---- rollout engine (vLLM) ----
+  ROLLOUT_MAX_NUM_SEQS: '64'
+  ROLLOUT_ACTIVE_TRAJECTORIES: '64'
+  ROLLOUT_CONTEXT_WINDOW_SAFETY_MARGIN: '2048'
+  ROLLOUT_PER_STEP_MAX_TOKENS: '8192'
+  ROLLOUT_FIRST_STEP_MAX_TOKENS: '4096'
+  ROLLOUT_INVALID_TOOL_CALL_MAX_TOKENS: '2048'
+  ROLLOUT_INVALID_TOOL_CALL_RETRY_LIMIT: '12'
+  ROLLOUT_STOP_AFTER_FUNCTION_CALL: 'True'
+  ROLLOUT_GPU_MEMORY_UTILIZATION: '0.20'
+  ROLLOUT_ENFORCE_EAGER: 'False'
+  ROLLOUT_FREE_CACHE_ENGINE: 'True'
+  ROLLOUT_ENABLE_SLEEP_MODE: 'True'
+  PIPELINE_TRAIN_AFTER_FULL_ROLLOUT: '1'
+  PIPELINE_LENGTH_BUCKET_ROLLOUTS: '1'
+  ROLLOUT_ENABLE_CHUNKED_PREFILL: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_ENABLE: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_ENABLE_CHUNKED_PREFILL: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_MAX_LONG_PARTIAL_PREFILLS: '2147483647'
+  ROLLOUT_ASCEND_SCHEDULER_LONG_PREFILL_TOKEN_THRESHOLD: '2147483647'
+  ROLLOUT_ENABLE_PREFIX_CACHING: 'False'
+  ROLLOUT_BLOCK_SIZE: '128'
+  ROLLOUT_CUDAGRAPH_CAPTURE_SIZES: '[16,8,4,2,1]'
+  RLLM_FORCE_VLLM_WEIGHT_SYNC_SHM: '1'
+  RLLM_DISABLE_FSDP_SYNC_MODULE_STATES: '1'
+  TOTAL_EPOCHS: '1'
+  ENABLE_VALIDATION: '0'
+  ENABLE_ROLLOUT_DATA_DUMP: '1'
+  MEMORY_PROFILE: stable
+
+  # ---- memory and parallelism ----
+  MODEL_USE_REMOVE_PADDING: 'True'
+  MODEL_ENABLE_ACTIVATION_OFFLOAD: 'True'
+  ULYSSES_SEQUENCE_PARALLEL_SIZE: '8'
+  ACTOR_ENTROPY_CHECKPOINTING: 'True'
+  ACTOR_ENTROPY_CHUNK_SIZE: '128'
+  ACTOR_ENTROPY_COEFF: '0.005'
+  ROLLOUT_TP_SIZE: '8'
+  ACTOR_OPTIMIZER_FOREACH: 'False'
+  ACTOR_USE_DYNAMIC_BSZ: 'False'
+  LOGPROB_USE_DYNAMIC_BSZ: 'False'
+  PG_LOSS_AGG_MODE: seq-mean-token-mean
+
+  # ---- staged privileged distillation ----
+  OPSD_ENABLE: '1'
+  OPSD_LOSS_COEF: '0.15'
+  OPSD_POLICY_LOSS_MODE: pg_plus_opsd
+  OPSD_TEACHER_SOURCE: ref_policy
+  OPSD_REF_LOAD_CHECKPOINT_FROM_RESUME: 'False'
+  OPSD_MAX_TOKENS_PER_SAMPLE: '0'
+  OPSD_ROUTE_SUCCESS_GRPO_FAILURE_OPSD: '0'
+  OPSD_FAIL_OPEN: 'False'
+  USE_RLSD: 'False'
+  USE_OPSD_KL: 'True'
+  # RLSD is an earlier importance-weighted variant kept for reference; with
+  # USE_RLSD=False every RLSD_* knob below is inert.
+  RLSD_WEIGHT_CLIP_EPS: '0.2'
+  RLSD_DELTA_CLIP: '5.0'
+  RLSD_USE_OLD_STUDENT_LOGP: 'True'
+  RLSD_USE_ROLLOUT_LOGP_AS_STUDENT_PRIOR: 'True'
+  RLSD_TEACHER_NO_GRAD: 'True'
+  RLSD_LOG_STATS: 'False'
+
+  # ---- reward shaping ----
+  EXPLORATION_TOOL_REWARD_COEF: '0.0'
+  EXPLORATION_TOOL_REWARD_MAX: '0.0'
+  EXPLORATION_TOOL_MIN_CALLS: '1'
+  EXPLORATION_TOOL_MISSING_PENALTY: '0.0'
+  EXPLORATION_NO_TOOL_CALL_PENALTY: '0.0'
+  EXPLORATION_REWARD_CLAMP_MIN: '-1.0'
+  EXPLORATION_REWARD_CLAMP_MAX: '1.0'
+  SOFT_OVERLONG_REWARD_FACTOR: '0.5'
+  GIVE_UP_EMPTY_PATCH_PENALTY: '-0.2'
+  RLLM_R2EGYM_FORCE_EXECUTION_COMMANDS: '1'
+
+  # ---- stage router ----
+  OPSD_STAGE_ROUTING: '1'
+  OPSD_STAGE_SEMANTIC_API: '1'
+  OPSD_STAGE_API_MODEL: qwen-flash
+  OPSD_STAGE_API_BASE: https://dashscope.aliyuncs.com/apps/anthropic
+  # OPSD_STAGE_API_KEY is deliberately not set here -- export it in the
+  # launching shell so no key ever lands in version control.
+  OPSD_STAGE_BACKTRACK: '3'
+  OPSD_PRIVILEGED_STAGES: causal_localization
+  OPD_END_TO_END_PROMPT: '1'
+
+  # ---- agent scaffold and environment ----
+  SWE_SCAFFOLD: openhands
+  OPD_PROMPT_TEMPLATE_DIR: '{{RLLM_ROOT}}/rllm/opd/prompt_templates_openhands'
+  R2EGYM_DOCKER_HOST: tcp://127.0.0.1:23750
+  DOCKER_HOST: tcp://127.0.0.1:23750
+  R2EGYM_TIMING: '1'
+  PREPULL_DATASET_IMAGES: '0'
+
+  # ---- run identity and data ----
+  PROJECT_NAME: swe_ladder
+  EXPERIMENT_NAME: ladder-4b-openhands-leg1-loc-semantic-router
+  TRAIN_DATASET: '{{DATA_ROOT}}/staged_opd_joint_swerebench500_r2e200_swegym100_swesmith500_task_intersection_enriched/patch_generation/train_verl.parquet'
+  VAL_DATASET: '{{DATA_ROOT}}/staged_opd_joint_swerebench500_r2e200_swegym100_swesmith500_task_intersection_enriched/patch_generation/valid_verl.parquet'
+  WANDB_PROJECT: swe_ladder
+  WANDB_TAGS: opsd+grpo,router-semantic,privilege-causal_localization,scaffold-openhands,qwen3-4b,8xnpu-colocated
+
+  # ---- episode budget and length envelope ----
+  AGENT_MAX_STEPS: '88'
+  AGENT_TRAJECTORY_TIMEOUT: '7200'
+  MAX_PROMPT_LENGTH: '12288'
+  MAX_RESPONSE_LENGTH: '38912'
+  PPO_MAX_TOKEN_LEN_PER_GPU: '51200'
+  LOGPROB_MAX_TOKEN_LEN_PER_GPU: '51200'
+  ROLLOUT_MAX_MODEL_LEN: '51200'
+  AGENT_MAX_RESPONSE_TOKENS_FOR_TRAINING: '38912'
+  ROLLOUT_MAX_NUM_BATCHED_TOKENS: '38912'
+  OPSD_MAX_RESPONSE_TOKENS_FOR_TRAINING: '38912'
+  RLSD_ACTOR_MAX_PACKED_CONTEXT_TOKENS: '51200'
+  RLSD_LAMBDA: '0.5'
+  RLSD_LAMBDA_INIT: '0.5'
+  RLSD_LAMBDA_FINAL: '0.1'
+  RLSD_LAMBDA_DECAY_STEPS: '100'
+
+  # ---- per-stage auxiliary rewards (off: end-to-end reward only) ----
+  CAUSAL_LOCALIZATION_REWARD_ENABLE: '0'
+  DISABLE_EXECUTION_REWARD: '0'
+  ISSUE_REPRODUCTION_EVAL_ENABLE: '0'
+  ISSUE_REPRODUCTION_REWARD_ENABLE: '0'

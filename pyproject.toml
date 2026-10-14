@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swe-ladder"
+version = "0.1.0"
+description = "Staged privileged distillation for SWE agents: a localize -> reproduce -> patch capability ladder"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# The standalone tooling only. The trainer's dependencies (torch / torch_npu, vllm,
+# verl, ray) belong to the upstream rllm environment this repository installs into --
+# see integration/README.md. requirements.txt explains each entry and what is
+# deliberately absent.
+dependencies = [
+    "pandas>=2.0",
+    "pyarrow>=14.0",
+    "numpy>=1.24",
+    "PyYAML>=6.0",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+analysis = ["matplotlib>=3.7", "tqdm>=4.65"]
+containers = ["docker>=6.1"]
+
+[project.urls]
+Homepage = "https://github.com/sekongger/SWE-Ladder"
+
+# `swe_ladder` is importable from a checkout so the shipped scripts and the analysis
+# code can use it before (or without) installing into an rllm tree, where the same
+# modules live as `rllm.opd`. `stage_capability_eval` is the per-stage scorer, used as
+# both a library and a set of entry-point scripts.
+[tool.setuptools]
+packages = ["swe_ladder", "stage_capability_eval"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+swe_ladder = [
+    "prompt_templates/*",
+    "prompt_templates_openhands/*",
+    "prompt_templates_sweagent/*",
+    "*.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["stage_capability_eval/tests"]

@@ -1,0 +1,225 @@
+# Ladder-order ablation: LOCALIZE privilege applied *after* a reproduction leg.
+#
+# Resumes a reverse-order lineage at global_step 40 and runs 30 LOC-privileged steps.
+# If the ladder works because of its ordering (easy rung first), running the rungs
+# backwards should underperform the forward ladder at matched total steps.
+#
+# Machine-specific paths below are placeholders. Render before launching:
+#   scripts/tools/render_config.py training/configs/ablation_ladder_reverse_order.yaml \
+#       --site training/configs/site.env -o /tmp/run.yaml
+# then: bash <rllm>/examples/swe/run_npu_train_from_yaml.sh /tmp/run.yaml
+# Shared memory/length tuning is explained once in docs/TRAINING.md.
+runtime:
+  conda_env: '{{CONDA_ENV}}'
+  entrypoint: DeepSWE_RL/rllm/examples/swe/train_entrypoint_npu.sh
+  log_dir: output/ablation_ladder_reverse_order
+  log_prefix: ablation_ladder_reverse_order
+  clean_ray_before_start: true
+env:
+  PYTHONNOUSERSITE: '1'
+  # Ray startup is unreliable on this box because ~8500 unreapable zombie processes
+  # (container PID 1 = `tail -f /dev/null` never reaps) slow the per-node metrics/reporter
+  # agent to ~31s, while the raylet's default wait for the agent's port file is ~15s -> the
+  # raylet hits `Check failed ... Timed out waiting for file metrics_agent_port`
+  # (node_manager.cc:3309) and the node never registers ("node timed out during startup").
+  # RAY_agent_register_timeout_ms is the raylet-side knob for that wait; raise it well above
+  # the agent's real startup time. RAY_raylet_start_wait_time_s is the driver-side wait for
+  # node registration. (Proper fix is a container restart with --init to reap zombies.)
+  # 2026-08-13: zombie count reached ~87k (10x the ~8.5k these were first tuned for), so the
+  # metrics-agent scan now takes ~5min and blew past the old 180s/300s -> "node timed out
+  # during startup". Scaled to ~900s to cover it. If this still times out, the container must
+  # be restarted with --init (UID 0) to reap the 87k PID-1-orphaned zombies -- can't be reaped
+  # from inside. Retry is safe: all NPUs free, no live Ray holds ports after the failed boot.
+  RAY_agent_register_timeout_ms: '900000'
+  RAY_raylet_start_wait_time_s: '900'
+  ASCEND_RT_VISIBLE_DEVICES: 0,1,2,3,4,5,6,7
+  NPU_VISIBLE_DEVICES: 0,1,2,3,4,5,6,7
+
+  # ---- devices, layout and backend runtime ----
+  TRAINER_LAYOUT_MODE: colocated
+  HYBRID_ENGINE: 'True'
+  HCCL_OP_EXPANSION_MODE: AIV
+  ROLLOUT_HCCL_OP_EXPANSION_MODE: AIV
+  TASK_QUEUE_ENABLE: '1'
+  PYTORCH_NPU_ALLOC_CONF: max_split_size_mb:256
+  TRAIN_N_GPUS_PER_NODE: '8'
+  TRAIN_DEVICE: npu
+
+  # ---- policy weights and resume ----
+  MODEL_PATH: '{{BASE_MODEL_4B}}'
+  # Train the end-to-end task from the BASE model (no checkpoint). The staged checkpoints
+  # were trained on a different (staged) task, so warm-starting them is inappropriate for
+  # the end-to-end formulation. resume_mode=disable -> actor starts from MODEL_PATH.
+  TRAINER_RESUME_MODE: resume_path
+  # Point at the reverse-order repro leg's run dir, global_step_40.
+  TRAINER_RESUME_FROM_PATH: '{{RESUME_CHECKPOINT}}'
+  TRAINER_RESUME_LOAD_DATALOADER: 'True'
+  TRAINER_STAGE_GLOBAL_STEP_OFFSET: '40'
+  TRAINER_TOTAL_TRAINING_STEPS: '30'
+  OPD_RENDER_PROMPT_AT_RUNTIME: '1'
+
+  # ---- logging ----
+  TRAIN_LOGGERS: console,tensorboard,wandb
+  WANDB_ENABLE: '1'
+  WANDB_MODE: online
+  WANDB_INIT_TIMEOUT: '300'
+
+  # ---- RL algorithm and batch shape ----
+  RL_ALGO: grpo
+  TRAIN_BATCH_SIZE: '16'
+  PPO_MINI_BATCH_SIZE: '1'
+  ACTOR_PPO_MICRO_BATCH_SIZE_PER_GPU: '1'
+  LOGPROB_MICRO_BATCH_SIZE_PER_GPU: '1'
+  ROLLOUT_N: '4'
+  # Keep 64 rollout samples per train batch via ROLLOUT_N, but do not let vLLM
+  # decode all of them concurrently: Ascend PagedAttention needs workspace HBM
+  # outside the KV cache reservation.
+
+  # ---- rollout engine (vLLM) ----
+  ROLLOUT_MAX_NUM_SEQS: '64'
+  ROLLOUT_ACTIVE_TRAJECTORIES: '64'
+  ROLLOUT_CONTEXT_WINDOW_SAFETY_MARGIN: '2048'
+  # Fix#2: relax per-step generation caps so a single large str_replace/insert is not
+  # truncated mid-edit (a truncated edit fails to apply -> empty patch). Total budget
+  # MAX_RESPONSE_LENGTH stays 30840, so HBM envelope is unchanged.
+  ROLLOUT_PER_STEP_MAX_TOKENS: '8192'
+  ROLLOUT_FIRST_STEP_MAX_TOKENS: '4096'
+  ROLLOUT_INVALID_TOOL_CALL_MAX_TOKENS: '2048'
+  ROLLOUT_INVALID_TOOL_CALL_RETRY_LIMIT: '12'
+  ROLLOUT_STOP_AFTER_FUNCTION_CALL: 'True'
+  ROLLOUT_GPU_MEMORY_UTILIZATION: '0.20'
+  ROLLOUT_ENFORCE_EAGER: 'False'
+  # Keep vLLM sleep/cache release enabled before actor logprob/update.
+  # gpu_memory_utilization caps vLLM cache reservation, not total colocated HBM.
+  ROLLOUT_FREE_CACHE_ENGINE: 'True'
+  ROLLOUT_ENABLE_SLEEP_MODE: 'True'
+  PIPELINE_TRAIN_AFTER_FULL_ROLLOUT: '1'
+  PIPELINE_LENGTH_BUCKET_ROLLOUTS: '1'
+  ROLLOUT_ENABLE_CHUNKED_PREFILL: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_ENABLE: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_ENABLE_CHUNKED_PREFILL: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_MAX_LONG_PARTIAL_PREFILLS: '2147483647'
+  ROLLOUT_ASCEND_SCHEDULER_LONG_PREFILL_TOKEN_THRESHOLD: '2147483647'
+  ROLLOUT_ENABLE_PREFIX_CACHING: 'False'
+  ROLLOUT_BLOCK_SIZE: '128'
+  ROLLOUT_CUDAGRAPH_CAPTURE_SIZES: '[16,8,4,2,1]'
+  RLLM_FORCE_VLLM_WEIGHT_SYNC_SHM: '1'
+  RLLM_DISABLE_FSDP_SYNC_MODULE_STATES: '1'
+  TOTAL_EPOCHS: '1'
+  ENABLE_VALIDATION: '0'
+  MEMORY_PROFILE: stable
+
+  # ---- memory and parallelism ----
+  MODEL_USE_REMOVE_PADDING: 'True'
+  MODEL_ENABLE_ACTIVATION_OFFLOAD: 'True'
+  ULYSSES_SEQUENCE_PARALLEL_SIZE: '8'
+  ACTOR_ENTROPY_CHECKPOINTING: 'True'
+  ACTOR_ENTROPY_CHUNK_SIZE: '128'
+  # Fix#3: small entropy bonus to resist the entropy/length collapse (resp_len 24k->5k,
+  # steps 65->10) that drove early give-up and empty patches. Was hardcoded 0.0.
+  ACTOR_ENTROPY_COEFF: '0.005'
+  ROLLOUT_TP_SIZE: '8'
+  ACTOR_OPTIMIZER_FOREACH: 'False'
+  ACTOR_USE_DYNAMIC_BSZ: 'False'
+  LOGPROB_USE_DYNAMIC_BSZ: 'False'
+  PG_LOSS_AGG_MODE: seq-mean-token-mean
+
+  # ---- staged privileged distillation ----
+  OPSD_ENABLE: '1'
+  # Fix#3: strengthen the reverse-KL anchor to the ref policy. Was 0.04 (1/10 of the
+  # script default 0.4); too weak to hold the policy, reverse_kl drifted 0.22->0.63.
+  OPSD_LOSS_COEF: '0.15'
+  OPSD_POLICY_LOSS_MODE: pg_plus_opsd
+  OPSD_TEACHER_SOURCE: ref_policy
+  # No resume checkpoint -> the OPSD reverse-KL ref/teacher is the BASE model (MODEL_PATH).
+  OPSD_REF_LOAD_CHECKPOINT_FROM_RESUME: 'False'
+  OPSD_MAX_TOKENS_PER_SAMPLE: '0'
+  OPSD_ROUTE_SUCCESS_GRPO_FAILURE_OPSD: '0'
+  OPSD_FAIL_OPEN: 'False'
+  USE_RLSD: 'False'
+  USE_OPSD_KL: 'True'
+  # RLSD is an earlier importance-weighted variant kept for reference; with
+  # USE_RLSD=False every RLSD_* knob below is inert.
+  RLSD_WEIGHT_CLIP_EPS: '0.2'
+  RLSD_DELTA_CLIP: '5.0'
+  RLSD_USE_OLD_STUDENT_LOGP: 'True'
+  RLSD_USE_ROLLOUT_LOGP_AS_STUDENT_PRIOR: 'True'
+  RLSD_TEACHER_NO_GRAD: 'True'
+  RLSD_LOG_STATS: 'False'
+
+  # ---- reward shaping ----
+  EXPLORATION_TOOL_REWARD_COEF: '0.0'
+  EXPLORATION_TOOL_REWARD_MAX: '0.0'
+  EXPLORATION_TOOL_MIN_CALLS: '1'
+  EXPLORATION_TOOL_MISSING_PENALTY: '0.0'
+  EXPLORATION_NO_TOOL_CALL_PENALTY: '0.0'
+  EXPLORATION_REWARD_CLAMP_MIN: '-1.0'
+  EXPLORATION_REWARD_CLAMP_MAX: '1.0'
+  # Fix#1: distinguish "long failure" from "early give-up".
+  # - Early give-up (voluntary finish, no solve, no source edit -> empty patch) is penalized
+  #   via GIVE_UP_EMPTY_PATCH_PENALTY.
+  # - Length-truncated solves (TRUNCATION: response cut mid-generation at MAX_RESPONSE_LENGTH)
+  #   keep the 0.5 discount so full reward does not reinforce max-length/truncated generations
+  #   and drive runaway length (len_clip was already climbing). Only affects *solved* overlong
+  #   rollouts (unsolved stay 0); ENV_DONE give-ups are unaffected (not a soft-overlong reason).
+  SOFT_OVERLONG_REWARD_FACTOR: '0.5'
+  # Ablation: give-up penalty removed (was -0.2) to isolate its effect. Evidence shows the
+  # repeated-failed-edit looping is inherent to the base model (base eval: 67% of edit
+  # failures are exact repeats), NOT caused by this penalty. Keep 0.0 for the clean A/B run;
+  # compare at matched training steps against the -0.2 run.
+  GIVE_UP_EMPTY_PATCH_PENALTY: '-0.2'
+  # Executable-repair regime: force the execution-capable command set so training uses the
+  # same python/pytest/pip-enabled bash tools as the eval scaffold (prevents a silent switch
+  # to the no-execution command set if runtime.generic_sandbox is ever True).
+  RLLM_R2EGYM_FORCE_EXECUTION_COMMANDS: '1'
+  # End-to-end OPSD per-step stage routing (3A engine per-token labels + 3B transform
+  # passthrough + 3C ref-worker multi-context scoring & per-token splice). LOC/REPRO tokens
+  # use a ref-policy teacher with the exact student prompt; only PATCH tokens receive a
+  # privileged evidence block. OPSD_STAGE_BACKTRACK=N: N consecutive exploration steps move
+  # the phase back to localization (0 = monotonic/forward-only).
+
+  # ---- stage router ----
+  OPSD_STAGE_ROUTING: '1'
+  OPSD_STAGE_BACKTRACK: '3'
+  OPSD_PRIVILEGED_STAGES: causal_localization
+  # End-to-end student prompt: render the unified agentic prompt (= eval scaffold's
+  # edit_non_fn_calling prompt) instead of the per-stage staged prompt, so training is
+  # truly end-to-end AND the student prompt matches eval. OPD teacher variants are built as
+  # this same prompt + each stage's privileged block only. Requires OPD_RENDER_PROMPT_AT_RUNTIME=1
+  # (already set above).
+  OPD_END_TO_END_PROMPT: '1'
+  R2EGYM_DOCKER_HOST: tcp://127.0.0.1:23750
+  DOCKER_HOST: tcp://127.0.0.1:23750
+  R2EGYM_TIMING: '1'
+  PREPULL_DATASET_IMAGES: '0'
+
+  # ---- run identity and data ----
+  PROJECT_NAME: swe_ladder
+  EXPERIMENT_NAME: ablation-ladder-reverse-order
+  TRAIN_DATASET: '{{DATA_ROOT}}/staged_opd_joint_swerebench500_r2e200_swegym100_swesmith500_task_intersection_enriched/patch_generation/train_verl.parquet'
+  VAL_DATASET: '{{DATA_ROOT}}/staged_opd_joint_swerebench500_r2e200_swegym100_swesmith500_task_intersection_enriched/patch_generation/valid_verl.parquet'
+  WANDB_PROJECT: swe_ladder
+  WANDB_TAGS: opsd+grpo,router-rule,privilege-causal_localization,scaffold-r2egym,qwen3-4b,8xnpu-colocated
+
+  # ---- episode budget and length envelope ----
+  AGENT_MAX_STEPS: '88'
+  AGENT_TRAJECTORY_TIMEOUT: '5400'
+  MAX_PROMPT_LENGTH: '10240'
+  MAX_RESPONSE_LENGTH: '38912'
+  PPO_MAX_TOKEN_LEN_PER_GPU: '49152'
+  LOGPROB_MAX_TOKEN_LEN_PER_GPU: '49152'
+  ROLLOUT_MAX_MODEL_LEN: '49152'
+  AGENT_MAX_RESPONSE_TOKENS_FOR_TRAINING: '38912'
+  ROLLOUT_MAX_NUM_BATCHED_TOKENS: '38912'
+  OPSD_MAX_RESPONSE_TOKENS_FOR_TRAINING: '38912'
+  RLSD_ACTOR_MAX_PACKED_CONTEXT_TOKENS: '49152'
+  RLSD_LAMBDA: '0.5'
+  RLSD_LAMBDA_INIT: '0.5'
+  RLSD_LAMBDA_FINAL: '0.1'
+  RLSD_LAMBDA_DECAY_STEPS: '100'
+
+  # ---- per-stage auxiliary rewards (off: end-to-end reward only) ----
+  CAUSAL_LOCALIZATION_REWARD_ENABLE: '0'
+  DISABLE_EXECUTION_REWARD: '0'
+  ISSUE_REPRODUCTION_EVAL_ENABLE: '0'
+  ISSUE_REPRODUCTION_REWARD_ENABLE: '0'

@@ -1,0 +1,9 @@
+{
+  "schema_version": "stage_capability_packages_v1",
+  "hashes": {
+    "stage_capability_eval/manifests/repro_given_loc.jsonl": "d0652ac14b5955e3ef277d5b9b0e018d417f441b9b4d5dd34f2107ec7025d857",
+    "stage_capability_eval/manifests/patch_given_loc.jsonl": "86d3d82c56409123604a5fbbe54e012cefb5e50f7673f6afe39490c329f3934b",
+    "stage_capability_eval/evaluator_private/repro_metadata.jsonl": "5dd2cce958a81d935a44abc1919b77cafda19db1fa5d518f8a57293b89f84c57",
+    "stage_capability_eval/evaluator_private/patch_verifier_metadata.jsonl": "990b34808d0d3ccbaffe09421de7310e3b3c24554e39d020dae53624c06fcce9"
+  }
+}

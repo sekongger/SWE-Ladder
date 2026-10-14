@@ -1,0 +1,827 @@
+{
+  "forwards_meta": {
+    "data_pickle": "analysis/fork_suppression/out/data_gs30_n100_fixed.pkl",
+    "student_path": "analysis/fork_suppression/merged_ckpts/sr_gs30",
+    "teacher_path": "<workspace>/hf_models/Qwen/Qwen3-4B-Instruct-2507",
+    "k": 32,
+    "normalize_teacher_topk": true,
+    "max_seq_len": null,
+    "n_trajectories_processed": 64,
+    "n_positions": 2024,
+    "truncated_student_forwards": 0,
+    "truncated_teacher_forwards": 0
+  },
+  "k_primary": 32,
+  "k_robust": 16,
+  "normalize_teacher_topk": true,
+  "n_boot": 2000,
+  "seed": 0,
+  "k32": {
+    "n_positions": 2024,
+    "n_in_support_wa": 2024,
+    "n_in_support_sr": 2024,
+    "excluded_fraction_wa": 0.0,
+    "excluded_fraction_sr": 0.0,
+    "P3_gate_passed": true,
+    "P3_gate": {
+      "n_patch_positions_in_support_both": 1370,
+      "max_abs_U_wa_minus_U_sr_patch": 0.0,
+      "worst_abs_nep_delta_patch": 0.0,
+      "nep_delta_patch_by_percentile": {
+        "p5": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 69,
+          "n_commit": 0
+        },
+        "p10": {
+          "nep_wa": 0.07712637225828271,
+          "nep_sr": 0.07712637225828271,
+          "delta": 0.0,
+          "n_explore": 135,
+          "n_commit": 2
+        },
+        "p20": {
+          "nep_wa": 0.003057838076049476,
+          "nep_sr": 0.003057838076049476,
+          "delta": 0.0,
+          "n_explore": 216,
+          "n_commit": 17
+        }
+      },
+      "eps": 1e-06,
+      "note": "SR patch context == WA (force-PATCH) render by construction; delta must be ~0."
+    },
+    "M1": {
+      "n_total": 2024,
+      "by_class": {
+        "COMMIT": {
+          "n": 673,
+          "H_mean": 0.002099299247070307,
+          "U_wa_mean": -0.0008521570223458321,
+          "U_sr_mean": -0.0006513792810451344
+        },
+        "EXPLORE": {
+          "n": 1089,
+          "H_mean": 0.23127453949746454,
+          "U_wa_mean": -0.003557447606891005,
+          "U_sr_mean": -0.005076639699391993
+        },
+        "OTHER": {
+          "n": 210,
+          "H_mean": 3.393955304345365e-06,
+          "U_wa_mean": -8.232816479912613e-08,
+          "U_sr_mean": -1.1440454034713947e-07
+        },
+        "SUBMIT": {
+          "n": 52,
+          "H_mean": 0.0002278301705630908,
+          "U_wa_mean": -1.5342532925817154e-05,
+          "U_sr_mean": -1.4830570072575e-05
+        }
+      },
+      "paper_fork_rate_wa": 0.001976284584980237,
+      "paper_lock_rate_wa": 0.9308300395256917,
+      "paper_fork_rate_sr": 0.0004940711462450593,
+      "paper_lock_rate_sr": 0.9303359683794467
+    },
+    "nep_variant": "B_entropy_contrast: NEP = U(top-p% entropy) - U(bottom-50% entropy), within pool(M2)/stage(M4); replaces frozen EXPLORE-vs-COMMIT cells because COMMIT is near-deterministic and never reaches the high-entropy fork.",
+    "M2": {
+      "p5": {
+        "nep_wa": 0.005945964349480108,
+        "nep_sr": -0.016964789694113542,
+        "delta": 0.022910754043593648,
+        "n_top": 102,
+        "n_base": 1012,
+        "delta_ci": {
+          "point": 0.022910754043593648,
+          "mean": 0.014395208709767479,
+          "ci_lo": -0.03470006630405973,
+          "ci_hi": 0.05673675028816784,
+          "n_boot_valid": 2000
+        }
+      },
+      "p10": {
+        "nep_wa": -0.01474605387793707,
+        "nep_sr": -0.02423096255395744,
+        "delta": 0.00948490867602037,
+        "n_top": 203,
+        "n_base": 1012,
+        "delta_ci": {
+          "point": 0.00948490867602037,
+          "mean": 0.007927683058248619,
+          "ci_lo": -0.028035175090310244,
+          "ci_hi": 0.04133672229051221,
+          "n_boot_valid": 2000
+        }
+      },
+      "p20": {
+        "nep_wa": -0.010964899417007158,
+        "nep_sr": -0.014717125461981836,
+        "delta": 0.0037522260449746776,
+        "n_top": 405,
+        "n_base": 1012,
+        "delta_ci": {
+          "point": 0.0037522260449746776,
+          "mean": 0.004040446280106335,
+          "ci_lo": -0.015199418157930869,
+          "ci_hi": 0.023506718731091655,
+          "n_boot_valid": 2000
+        }
+      }
+    },
+    "M4": {
+      "causal_localization": {
+        "p5": {
+          "nep_wa": 0.022069788323901073,
+          "nep_sr": -0.02648139957623926,
+          "delta": 0.04855118790014033,
+          "n_top": 24,
+          "n_base": 237,
+          "delta_ci": {
+            "point": 0.04855118790014033,
+            "mean": 0.03827784423370126,
+            "ci_lo": -0.0679621062759196,
+            "ci_hi": 0.1619353480548842,
+            "n_boot_valid": 2000
+          }
+        },
+        "p10": {
+          "nep_wa": 0.024598577243821494,
+          "nep_sr": -0.007031481730658397,
+          "delta": 0.03163005897447989,
+          "n_top": 48,
+          "n_base": 237,
+          "delta_ci": {
+            "point": 0.03163005897447989,
+            "mean": 0.03040350971238963,
+            "ci_lo": -0.04239554886816604,
+            "ci_hi": 0.10915620839902823,
+            "n_boot_valid": 2000
+          }
+        },
+        "p20": {
+          "nep_wa": 0.011615125499683729,
+          "nep_sr": -0.0039059648058534704,
+          "delta": 0.0155210903055372,
+          "n_top": 95,
+          "n_base": 237,
+          "delta_ci": {
+            "point": 0.0155210903055372,
+            "mean": 0.01629728884776673,
+            "ci_lo": -0.021260296856736742,
+            "ci_hi": 0.057791793700691194,
+            "n_boot_valid": 2000
+          }
+        }
+      },
+      "localized_issue_reproduction": {
+        "p5": {
+          "nep_wa": 0.034984524063898806,
+          "nep_sr": -0.010114650755257859,
+          "delta": 0.045099174819156665,
+          "n_top": 10,
+          "n_base": 91,
+          "delta_ci": {
+            "point": 0.045099174819156665,
+            "mean": 0.045122240593270885,
+            "ci_lo": -0.16698948016347853,
+            "ci_hi": 0.16546823289291557,
+            "n_boot_valid": 2000
+          }
+        },
+        "p10": {
+          "nep_wa": 0.04339169608668036,
+          "nep_sr": -0.007479398315920038,
+          "delta": 0.050871094402600396,
+          "n_top": 19,
+          "n_base": 91,
+          "delta_ci": {
+            "point": 0.050871094402600396,
+            "mean": 0.03357613558851021,
+            "ci_lo": -0.1278611289128366,
+            "ci_hi": 0.1346462926275287,
+            "n_boot_valid": 2000
+          }
+        },
+        "p20": {
+          "nep_wa": 0.0190479356859106,
+          "nep_sr": -0.007758510821836019,
+          "delta": 0.02680644650774662,
+          "n_top": 37,
+          "n_base": 91,
+          "delta_ci": {
+            "point": 0.02680644650774662,
+            "mean": 0.00604901414348838,
+            "ci_lo": -0.1250112721321268,
+            "ci_hi": 0.080873198277484,
+            "n_boot_valid": 2000
+          }
+        }
+      },
+      "patch_generation": {
+        "p5": {
+          "nep_wa": -0.03824614369658362,
+          "nep_sr": -0.03824614369658362,
+          "delta": 0.0,
+          "n_top": 69,
+          "n_base": 685,
+          "delta_ci": {
+            "point": 0.0,
+            "mean": 0.0,
+            "ci_lo": 0.0,
+            "ci_hi": 0.0,
+            "n_boot_valid": 2000
+          }
+        },
+        "p10": {
+          "nep_wa": -0.0313338221246975,
+          "nep_sr": -0.0313338221246975,
+          "delta": 0.0,
+          "n_top": 137,
+          "n_base": 685,
+          "delta_ci": {
+            "point": 0.0,
+            "mean": 0.0,
+            "ci_lo": 0.0,
+            "ci_hi": 0.0,
+            "n_boot_valid": 2000
+          }
+        },
+        "p20": {
+          "nep_wa": -0.017467231045145856,
+          "nep_sr": -0.017467231045145856,
+          "delta": 0.0,
+          "n_top": 274,
+          "n_base": 685,
+          "delta_ci": {
+            "point": 0.0,
+            "mean": 0.0,
+            "ci_lo": 0.0,
+            "ci_hi": 0.0,
+            "n_boot_valid": 2000
+          }
+        }
+      }
+    },
+    "placebo": {
+      "m2_placebo": {
+        "nep_wa": -1.1835343582828839e-08,
+        "nep_sr": -1.1290362049278726e-08,
+        "delta": -5.449815335501131e-10,
+        "n_top": 506,
+        "n_base": 506,
+        "delta_ci": {
+          "point": -5.449815335501131e-10,
+          "mean": -9.35501637591141e-10,
+          "ci_lo": -4.2676272715772e-09,
+          "ci_hi": -1.6475820499317953e-10,
+          "n_boot_valid": 2000
+        }
+      },
+      "m4_placebo": {
+        "causal_localization": {
+          "nep_wa": -1.2788017705022155e-07,
+          "nep_sr": -1.1326816880190136e-07,
+          "delta": -1.461200824832019e-08,
+          "n_top": 118,
+          "n_base": 119,
+          "delta_ci": {
+            "point": -1.461200824832019e-08,
+            "mean": -2.6302303576889097e-08,
+            "ci_lo": -8.543893649093526e-08,
+            "ci_hi": -4.465396369025911e-09,
+            "n_boot_valid": 2000
+          }
+        },
+        "localized_issue_reproduction": {
+          "nep_wa": -5.5679903565271645e-08,
+          "nep_sr": -5.637502195201266e-08,
+          "delta": 6.951183867410147e-10,
+          "n_top": 45,
+          "n_base": 46,
+          "delta_ci": {
+            "point": 6.951183867410147e-10,
+            "mean": -5.5362582082268016e-05,
+            "ci_lo": -0.0014287599939039697,
+            "ci_hi": 8.114409770412338e-05,
+            "n_boot_valid": 2000
+          }
+        },
+        "patch_generation": {
+          "nep_wa": -5.792157293800952e-09,
+          "nep_sr": -5.792157293800952e-09,
+          "delta": 0.0,
+          "n_top": 342,
+          "n_base": 343,
+          "delta_ci": {
+            "point": 0.0,
+            "mean": 0.0,
+            "ci_lo": 0.0,
+            "ci_hi": 0.0,
+            "n_boot_valid": 2000
+          }
+        }
+      }
+    },
+    "M2_frozen_explore_vs_commit": {
+      "p5": {
+        "nep_wa": NaN,
+        "nep_sr": NaN,
+        "delta": NaN,
+        "n_explore": 102,
+        "n_commit": 0
+      },
+      "p10": {
+        "nep_wa": 0.33096214572284566,
+        "nep_sr": 0.32143028239094396,
+        "delta": 0.009531863331901702,
+        "n_explore": 202,
+        "n_commit": 1
+      },
+      "p20": {
+        "nep_wa": 0.03415437439237439,
+        "nep_sr": 0.019544716416004807,
+        "delta": 0.014609657976369584,
+        "n_explore": 392,
+        "n_commit": 13
+      }
+    },
+    "M4_frozen_explore_vs_commit": {
+      "causal_localization": {
+        "p5": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 24,
+          "n_commit": 0
+        },
+        "p10": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 48,
+          "n_commit": 0
+        },
+        "p20": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 95,
+          "n_commit": 0
+        }
+      },
+      "localized_issue_reproduction": {
+        "p5": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 10,
+          "n_commit": 0
+        },
+        "p10": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 19,
+          "n_commit": 0
+        },
+        "p20": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 37,
+          "n_commit": 0
+        }
+      },
+      "patch_generation": {
+        "p5": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 69,
+          "n_commit": 0
+        },
+        "p10": {
+          "nep_wa": 0.07712637225828271,
+          "nep_sr": 0.07712637225828271,
+          "delta": 0.0,
+          "n_explore": 135,
+          "n_commit": 2
+        },
+        "p20": {
+          "nep_wa": 0.003057838076049476,
+          "nep_sr": 0.003057838076049476,
+          "delta": 0.0,
+          "n_explore": 216,
+          "n_commit": 17
+        }
+      }
+    }
+  },
+  "k16": {
+    "n_positions": 2024,
+    "n_in_support_wa": 2023,
+    "n_in_support_sr": 2023,
+    "excluded_fraction_wa": 0.000494071146245112,
+    "excluded_fraction_sr": 0.000494071146245112,
+    "P3_gate_passed": true,
+    "P3_gate": {
+      "n_patch_positions_in_support_both": 1369,
+      "max_abs_U_wa_minus_U_sr_patch": 0.0,
+      "worst_abs_nep_delta_patch": 0.0,
+      "nep_delta_patch_by_percentile": {
+        "p5": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 68,
+          "n_commit": 0
+        },
+        "p10": {
+          "nep_wa": 0.08048668079119792,
+          "nep_sr": 0.08048668079119792,
+          "delta": 0.0,
+          "n_explore": 134,
+          "n_commit": 2
+        },
+        "p20": {
+          "nep_wa": 0.005198711428472166,
+          "nep_sr": 0.005198711428472166,
+          "delta": 0.0,
+          "n_explore": 215,
+          "n_commit": 17
+        }
+      },
+      "eps": 1e-06,
+      "note": "SR patch context == WA (force-PATCH) render by construction; delta must be ~0."
+    },
+    "M1": {
+      "n_total": 2024,
+      "by_class": {
+        "COMMIT": {
+          "n": 673,
+          "H_mean": 0.002099299247070307,
+          "U_wa_mean": -0.000852157022014904,
+          "U_sr_mean": -0.00065137927692817
+        },
+        "EXPLORE": {
+          "n": 1089,
+          "H_mean": 0.23127453949746454,
+          "U_wa_mean": -0.0037668348978930444,
+          "U_sr_mean": -0.004617657834283394
+        },
+        "OTHER": {
+          "n": 210,
+          "H_mean": 3.393955304345365e-06,
+          "U_wa_mean": -8.223701245749012e-08,
+          "U_sr_mean": -1.143060179816674e-07
+        },
+        "SUBMIT": {
+          "n": 52,
+          "H_mean": 0.0002278301705630908,
+          "U_wa_mean": -1.5318020691590437e-05,
+          "U_sr_mean": -1.4806288027886598e-05
+        }
+      },
+      "paper_fork_rate_wa": 0.001976284584980237,
+      "paper_lock_rate_wa": 0.9308300395256917,
+      "paper_fork_rate_sr": 0.0004940711462450593,
+      "paper_lock_rate_sr": 0.9303359683794467
+    },
+    "nep_variant": "B_entropy_contrast: NEP = U(top-p% entropy) - U(bottom-50% entropy), within pool(M2)/stage(M4); replaces frozen EXPLORE-vs-COMMIT cells because COMMIT is near-deterministic and never reaches the high-entropy fork.",
+    "M2": {
+      "p5": {
+        "nep_wa": 0.004693907921208465,
+        "nep_sr": -0.012208323464050241,
+        "delta": 0.016902231385258707,
+        "n_top": 101,
+        "n_base": 1012,
+        "delta_ci": {
+          "point": 0.016902231385258707,
+          "mean": 0.007951116912499742,
+          "ci_lo": -0.039460567023114575,
+          "ci_hi": 0.05053457352138445,
+          "n_boot_valid": 2000
+        }
+      },
+      "p10": {
+        "nep_wa": -0.015889437077588168,
+        "nep_sr": -0.021860211876466404,
+        "delta": 0.005970774798878236,
+        "n_top": 202,
+        "n_base": 1012,
+        "delta_ci": {
+          "point": 0.005970774798878236,
+          "mean": 0.00426257660279153,
+          "ci_lo": -0.02988149764894309,
+          "ci_hi": 0.03733358960389305,
+          "n_boot_valid": 2000
+        }
+      },
+      "p20": {
+        "nep_wa": -0.011547129712861912,
+        "nep_sr": -0.013504918460429827,
+        "delta": 0.001957788747567916,
+        "n_top": 404,
+        "n_base": 1012,
+        "delta_ci": {
+          "point": 0.001957788747567916,
+          "mean": 0.0021640279894855337,
+          "ci_lo": -0.01600705430830603,
+          "ci_hi": 0.020124361777069957,
+          "n_boot_valid": 2000
+        }
+      }
+    },
+    "M4": {
+      "causal_localization": {
+        "p5": {
+          "nep_wa": 0.0012795790721741149,
+          "nep_sr": -0.026227797233314476,
+          "delta": 0.02750737630548859,
+          "n_top": 24,
+          "n_base": 237,
+          "delta_ci": {
+            "point": 0.02750737630548859,
+            "mean": 0.01669078075262388,
+            "ci_lo": -0.10299631049665109,
+            "ci_hi": 0.1554837746818521,
+            "n_boot_valid": 2000
+          }
+        },
+        "p10": {
+          "nep_wa": 0.012780133192492158,
+          "nep_sr": -0.00685970581522969,
+          "delta": 0.01963983900772185,
+          "n_top": 48,
+          "n_base": 237,
+          "delta_ci": {
+            "point": 0.01963983900772185,
+            "mean": 0.018224042446175894,
+            "ci_lo": -0.05129145273460746,
+            "ci_hi": 0.09758073868064998,
+            "n_boot_valid": 2000
+          }
+        },
+        "p20": {
+          "nep_wa": 0.0056416408318458264,
+          "nep_sr": -0.0038183541098754095,
+          "delta": 0.009459994941721235,
+          "n_top": 95,
+          "n_base": 237,
+          "delta_ci": {
+            "point": 0.009459994941721235,
+            "mean": 0.010077084321249843,
+            "ci_lo": -0.024756585070188825,
+            "ci_hi": 0.05215598498074172,
+            "n_boot_valid": 2000
+          }
+        }
+      },
+      "localized_issue_reproduction": {
+        "p5": {
+          "nep_wa": 0.03257282659494331,
+          "nep_sr": -0.00988355816144717,
+          "delta": 0.04245638475639048,
+          "n_top": 10,
+          "n_base": 91,
+          "delta_ci": {
+            "point": 0.04245638475639048,
+            "mean": 0.04231081843438456,
+            "ci_lo": -0.16943231111321352,
+            "ci_hi": 0.16365196031259444,
+            "n_boot_valid": 2000
+          }
+        },
+        "p10": {
+          "nep_wa": 0.03977163799998732,
+          "nep_sr": -0.007061737676756222,
+          "delta": 0.04683337567674354,
+          "n_top": 19,
+          "n_base": 91,
+          "delta_ci": {
+            "point": 0.04683337567674354,
+            "mean": 0.030620134972993072,
+            "ci_lo": -0.12893684880817902,
+            "ci_hi": 0.1333421281088648,
+            "n_boot_valid": 2000
+          }
+        },
+        "p20": {
+          "nep_wa": 0.015904632909503717,
+          "nep_sr": -0.0074612291158528965,
+          "delta": 0.023365862025356614,
+          "n_top": 37,
+          "n_base": 91,
+          "delta_ci": {
+            "point": 0.023365862025356614,
+            "mean": 0.0027695114971505656,
+            "ci_lo": -0.12718158243375194,
+            "ci_hi": 0.07650301698441246,
+            "n_boot_valid": 2000
+          }
+        }
+      },
+      "patch_generation": {
+        "p5": {
+          "nep_wa": -0.03176767465950422,
+          "nep_sr": -0.03176767465950422,
+          "delta": 0.0,
+          "n_top": 68,
+          "n_base": 685,
+          "delta_ci": {
+            "point": 0.0,
+            "mean": 0.0,
+            "ci_lo": 0.0,
+            "ci_hi": 0.0,
+            "n_boot_valid": 2000
+          }
+        },
+        "p10": {
+          "nep_wa": -0.028031208500761,
+          "nep_sr": -0.028031208500761,
+          "delta": 0.0,
+          "n_top": 136,
+          "n_base": 685,
+          "delta_ci": {
+            "point": 0.0,
+            "mean": 0.0,
+            "ci_lo": 0.0,
+            "ci_hi": 0.0,
+            "n_boot_valid": 2000
+          }
+        },
+        "p20": {
+          "nep_wa": -0.01577076095401961,
+          "nep_sr": -0.01577076095401961,
+          "delta": 0.0,
+          "n_top": 273,
+          "n_base": 685,
+          "delta_ci": {
+            "point": 0.0,
+            "mean": 0.0,
+            "ci_lo": 0.0,
+            "ci_hi": 0.0,
+            "n_boot_valid": 2000
+          }
+        }
+      }
+    },
+    "placebo": {
+      "m2_placebo": {
+        "nep_wa": -1.1819927227613318e-08,
+        "nep_sr": -1.1275740974821992e-08,
+        "delta": -5.441862527913264e-10,
+        "n_top": 506,
+        "n_base": 506,
+        "delta_ci": {
+          "point": -5.441862527913264e-10,
+          "mean": -9.344001400415797e-10,
+          "ci_lo": -4.265383323273526e-09,
+          "ci_hi": -1.6429228674095577e-10,
+          "n_boot_valid": 2000
+        }
+      },
+      "m4_placebo": {
+        "causal_localization": {
+          "nep_wa": -1.2786061427747151e-07,
+          "nep_sr": -1.1325174301247275e-07,
+          "delta": -1.4608871264998761e-08,
+          "n_top": 118,
+          "n_base": 119,
+          "delta_ci": {
+            "point": -1.4608871264998761e-08,
+            "mean": -2.629545548714469e-08,
+            "ci_lo": -8.543310321224681e-08,
+            "ci_hi": -4.460142581018559e-09,
+            "n_boot_valid": 2000
+          }
+        },
+        "localized_issue_reproduction": {
+          "nep_wa": -5.561975831531549e-08,
+          "nep_sr": -5.632244263203951e-08,
+          "delta": 7.026843167240171e-10,
+          "n_top": 45,
+          "n_base": 46,
+          "delta_ci": {
+            "point": 7.026843167240171e-10,
+            "mean": -5.658362567291805e-05,
+            "ci_lo": -0.0014321104216795297,
+            "ci_hi": 7.469075170550752e-05,
+            "n_boot_valid": 2000
+          }
+        },
+        "patch_generation": {
+          "nep_wa": -5.785814897839491e-09,
+          "nep_sr": -5.785814897839491e-09,
+          "delta": 0.0,
+          "n_top": 342,
+          "n_base": 343,
+          "delta_ci": {
+            "point": 0.0,
+            "mean": 0.0,
+            "ci_lo": 0.0,
+            "ci_hi": 0.0,
+            "n_boot_valid": 2000
+          }
+        }
+      }
+    },
+    "M2_frozen_explore_vs_commit": {
+      "p5": {
+        "nep_wa": NaN,
+        "nep_sr": NaN,
+        "delta": NaN,
+        "n_explore": 101,
+        "n_commit": 0
+      },
+      "p10": {
+        "nep_wa": 0.3298211845666752,
+        "nep_sr": 0.32382070475767305,
+        "delta": 0.006000479809002146,
+        "n_explore": 201,
+        "n_commit": 1
+      },
+      "p20": {
+        "nep_wa": 0.03355559007651522,
+        "nep_sr": 0.02079883141956136,
+        "delta": 0.01275675865695386,
+        "n_explore": 391,
+        "n_commit": 13
+      }
+    },
+    "M4_frozen_explore_vs_commit": {
+      "causal_localization": {
+        "p5": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 24,
+          "n_commit": 0
+        },
+        "p10": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 48,
+          "n_commit": 0
+        },
+        "p20": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 95,
+          "n_commit": 0
+        }
+      },
+      "localized_issue_reproduction": {
+        "p5": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 10,
+          "n_commit": 0
+        },
+        "p10": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 19,
+          "n_commit": 0
+        },
+        "p20": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 37,
+          "n_commit": 0
+        }
+      },
+      "patch_generation": {
+        "p5": {
+          "nep_wa": NaN,
+          "nep_sr": NaN,
+          "delta": NaN,
+          "n_explore": 68,
+          "n_commit": 0
+        },
+        "p10": {
+          "nep_wa": 0.08048668079119792,
+          "nep_sr": 0.08048668079119792,
+          "delta": 0.0,
+          "n_explore": 134,
+          "n_commit": 2
+        },
+        "p20": {
+          "nep_wa": 0.005198711428472166,
+          "nep_sr": 0.005198711428472166,
+          "delta": 0.0,
+          "n_explore": 215,
+          "n_commit": 17
+        }
+      }
+    }
+  }
+}

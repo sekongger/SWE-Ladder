@@ -1,0 +1,20 @@
+protocol_id: stage_capability_v1
+source_dataset: princeton-nlp/SWE-bench_Verified
+source_revision: c104f840cc67f8b6eec6f759ebc8b2693d585d4a
+source_split: test
+bootstrap_source: output/rucaibox_original_scaffold_swebench_verified_dataset.json
+manifest_path: manifests/all_swebench_verified.jsonl
+private_source_records: evaluator_private/source_records.jsonl
+stage_task_packages:
+  loc: oracle_loc/oracle_loc.jsonl
+  repro_given_loc: manifests/repro_given_loc.jsonl
+  patch_given_loc: manifests/patch_given_loc.jsonl
+private_stage_metadata:
+  repro: evaluator_private/repro_metadata.jsonl
+  patch: evaluator_private/patch_verifier_metadata.jsonl
+public_inputs:
+  loc: issue_and_buggy_repository
+  repro_given_loc: issue_buggy_repository_and_oracle_loc
+  patch_given_loc: issue_buggy_repository_and_oracle_loc
+private_inputs: gold_patch_fixed_repository_hidden_tests_reference_labels
+status_values: [completed, model_invalid, budget_exhausted, not_applicable, infra_error, timeout]

@@ -1,0 +1,53 @@
+# Dependencies for the standalone tooling in this repository: scripts/, analysis/,
+# stage_capability_eval/ and eval/.
+#
+#     python3 -m venv .venv && . .venv/bin/activate
+#     pip install -r requirements.txt
+#
+# This is NOT the training environment. The trainer (torch, torch_npu or CUDA torch,
+# vllm, verl, ray, flash-attn) comes from the upstream rllm environment that
+# integration/install.sh grafts into -- see integration/README.md. Nothing here
+# pulls in an accelerator stack, so this file is safe to install anywhere.
+#
+# Versions are lower bounds, chosen as the oldest release we have actually run.
+# The exact versions behind the numbers in the paper are listed at the bottom.
+
+# Data pipeline: scripts/data/
+pandas>=2.0
+pyarrow>=14.0
+numpy>=1.24
+tqdm>=4.65              # optional: progress bars when loading image metadata
+
+# Config rendering and prompt-template tooling: scripts/tools/
+PyYAML>=6.0
+
+# Offline analysis and figures: analysis/
+matplotlib>=3.7
+
+# Containers: stage_capability_eval/, scripts/data/run_issue_reproduction_verifier.py
+docker>=6.1
+
+# HTTP clients: the semantic stage router, the teacher top-k client, the probes
+requests>=2.28
+
+# ---------------------------------------------------------------------------
+# Not installed here, and why:
+#
+#   torch, torch_npu       analysis/grad_interference/ and analysis/fork_suppression/
+#                          score trajectories with the policy itself; run those inside
+#                          the training environment, which already has the right build
+#                          for your accelerator. Installing a generic torch here would
+#                          shadow it.
+#   transformers           same two directories, for AutoTokenizer; comes with the
+#                          training environment.
+#   litellm, r2egym        eval/ drives R2E-Gym's own runner, from the R2E-Gym checkout
+#                          and its environment. run_swebench_verified_eval.sh checks for
+#                          them before starting rather than importing them here.
+#   scikit-learn           only if you build your own pickle for the learned-router
+#                          ablation; the engine just calls .predict() and does not care
+#                          what produced the object.
+#
+# ---------------------------------------------------------------------------
+# Versions used for the reported results (tooling side only):
+#   numpy 2.4.2  pandas 3.0.1  pyarrow 25.0.0  matplotlib 3.10.8
+#   PyYAML 6.0.3  requests 2.32.5  tqdm 4.67.3

@@ -1,0 +1,193 @@
+# Pure GRPO baseline on the SWE-agent scaffold over R2E-Gym-Lite (first 2000 tasks).
+#
+# The control arm for ladder_4b_sweagent_*. Note the different data regime from the
+# openhands arm: batch 8 x 8 rollouts on a 2000-task slice rather than 16 x 4 on the
+# staged joint set, so this is comparable to the sweagent ladder legs and to nothing
+# else.
+#
+# Machine-specific paths below are placeholders. Render before launching:
+#   scripts/tools/render_config.py training/configs/baseline_grpo_4b_sweagent.yaml \
+#       --site training/configs/site.env -o /tmp/run.yaml
+# then: bash <rllm>/examples/swe/run_npu_train_from_yaml.sh /tmp/run.yaml
+# Shared memory/length tuning is explained once in docs/TRAINING.md.
+runtime:
+  conda_env: '{{CONDA_ENV}}'
+  entrypoint: DeepSWE_RL/rllm/examples/swe/train_entrypoint_npu.sh
+  log_dir: output/baseline_grpo_4b_sweagent
+  log_prefix: baseline_grpo_4b_sweagent
+  clean_ray_before_start: true
+env:
+  PYTHONNOUSERSITE: '1'
+  RAY_agent_register_timeout_ms: '900000'
+  RAY_raylet_start_wait_time_s: '900'
+  ASCEND_RT_VISIBLE_DEVICES: 0,1,2,3,4,5,6,7
+  NPU_VISIBLE_DEVICES: 0,1,2,3,4,5,6,7
+
+  # ---- devices, layout and backend runtime ----
+  TRAINER_LAYOUT_MODE: colocated
+  HYBRID_ENGINE: 'True'
+  HCCL_OP_EXPANSION_MODE: AIV
+  # Keep this run's HCCL control/data-plane sockets away from stale jobs.
+  HCCL_HOST_SOCKET_PORT_RANGE: 60000-60050
+  HCCL_NPU_SOCKET_PORT_RANGE: 61000-61050
+  ROLLOUT_HCCL_OP_EXPANSION_MODE: AIV
+  TASK_QUEUE_ENABLE: '1'
+  PYTORCH_NPU_ALLOC_CONF: max_split_size_mb:256
+  TRAIN_N_GPUS_PER_NODE: '8'
+  TRAIN_DEVICE: npu
+
+  # ---- policy weights and resume ----
+  MODEL_PATH: '{{BASE_MODEL_4B}}'
+  TRAINER_RESUME_MODE: disable
+  TRAINER_RESUME_FROM_PATH: 'null'
+  TRAINER_RESUME_LOAD_DATALOADER: 'False'
+  TRAINER_STAGE_GLOBAL_STEP_OFFSET: '0'
+  TRAINER_TOTAL_TRAINING_STEPS: '300'
+  OPD_RENDER_PROMPT_AT_RUNTIME: '1'
+
+  # ---- logging ----
+  TRAIN_LOGGERS: console,tensorboard,wandb
+  WANDB_ENABLE: '1'
+  WANDB_MODE: online
+  WANDB_INIT_TIMEOUT: '300'
+
+  # ---- RL algorithm and batch shape ----
+  RL_ALGO: grpo
+  TRAIN_BATCH_SIZE: '8'
+  PPO_MINI_BATCH_SIZE: '1'
+  ACTOR_USE_KL_LOSS: 'True'
+  ACTOR_KL_LOSS_COEF: '0.001'
+  ACTOR_CLIP_RATIO_LOW: '0.28'
+  ACTOR_CLIP_RATIO_HIGH: '0.28'
+  ACTOR_PPO_MICRO_BATCH_SIZE_PER_GPU: '1'
+  LOGPROB_MICRO_BATCH_SIZE_PER_GPU: '1'
+  ROLLOUT_N: '8'
+  ROLLOUT_TEMPERATURE: '1.0'
+
+  # ---- rollout engine (vLLM) ----
+  ROLLOUT_MAX_NUM_SEQS: '64'
+  ROLLOUT_ACTIVE_TRAJECTORIES: '64'
+  ROLLOUT_CONTEXT_WINDOW_SAFETY_MARGIN: '2048'
+  ROLLOUT_PER_STEP_MAX_TOKENS: '8192'
+  ROLLOUT_FIRST_STEP_MAX_TOKENS: '4096'
+  ROLLOUT_INVALID_TOOL_CALL_MAX_TOKENS: '2048'
+  ROLLOUT_INVALID_TOOL_CALL_RETRY_LIMIT: '12'
+  ROLLOUT_STOP_AFTER_FUNCTION_CALL: 'True'
+  ROLLOUT_GPU_MEMORY_UTILIZATION: '0.32'
+  ROLLOUT_ENFORCE_EAGER: 'False'
+  ROLLOUT_FREE_CACHE_ENGINE: 'True'
+  ROLLOUT_ENABLE_SLEEP_MODE: 'True'
+  PIPELINE_TRAIN_AFTER_FULL_ROLLOUT: '1'
+  PIPELINE_LENGTH_BUCKET_ROLLOUTS: '1'
+  ROLLOUT_ENABLE_CHUNKED_PREFILL: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_ENABLE: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_ENABLE_CHUNKED_PREFILL: 'True'
+  ROLLOUT_ASCEND_SCHEDULER_MAX_LONG_PARTIAL_PREFILLS: '2147483647'
+  ROLLOUT_ASCEND_SCHEDULER_LONG_PREFILL_TOKEN_THRESHOLD: '2147483647'
+  ROLLOUT_ENABLE_PREFIX_CACHING: 'False'
+  ROLLOUT_BLOCK_SIZE: '128'
+  ROLLOUT_CUDAGRAPH_CAPTURE_SIZES: '[16,8,4,2,1]'
+  RLLM_FORCE_VLLM_WEIGHT_SYNC_SHM: '1'
+  RLLM_DISABLE_FSDP_SYNC_MODULE_STATES: '1'
+  TOTAL_EPOCHS: '2'
+  ENABLE_VALIDATION: '0'
+  MEMORY_PROFILE: stable
+
+  # ---- memory and parallelism ----
+  MODEL_USE_REMOVE_PADDING: 'True'
+  MODEL_ENABLE_ACTIVATION_OFFLOAD: 'True'
+  ULYSSES_SEQUENCE_PARALLEL_SIZE: '8'
+  ACTOR_ENTROPY_CHECKPOINTING: 'True'
+  ACTOR_ENTROPY_CHUNK_SIZE: '512'
+  ACTOR_ENTROPY_COEFF: '0.0'
+  ROLLOUT_TP_SIZE: '8'
+  ACTOR_OPTIMIZER_FOREACH: 'False'
+  ACTOR_USE_DYNAMIC_BSZ: 'False'
+  LOGPROB_USE_DYNAMIC_BSZ: 'False'
+  PG_LOSS_AGG_MODE: seq-mean-token-mean
+
+  # ---- staged privileged distillation ----
+  OPSD_ENABLE: '0'
+  OPSD_LOSS_COEF: '0.0'
+  OPSD_POLICY_LOSS_MODE: pg_plus_opsd
+  OPSD_TEACHER_SOURCE: ref_policy
+  OPSD_REF_LOAD_CHECKPOINT_FROM_RESUME: 'False'
+  OPSD_MAX_TOKENS_PER_SAMPLE: '0'
+  OPSD_ROUTE_SUCCESS_GRPO_FAILURE_OPSD: '0'
+  OPSD_FAIL_OPEN: 'False'
+  USE_RLSD: 'False'
+  USE_OPSD_KL: 'False'
+  # RLSD is an earlier importance-weighted variant kept for reference; with
+  # USE_RLSD=False every RLSD_* knob below is inert.
+  RLSD_WEIGHT_CLIP_EPS: '0.2'
+  RLSD_DELTA_CLIP: '5.0'
+  RLSD_USE_OLD_STUDENT_LOGP: 'True'
+  RLSD_USE_ROLLOUT_LOGP_AS_STUDENT_PRIOR: 'True'
+  RLSD_TEACHER_NO_GRAD: 'True'
+  RLSD_LOG_STATS: 'False'
+
+  # ---- reward shaping ----
+  EXPLORATION_TOOL_REWARD_COEF: '0.0'
+  EXPLORATION_TOOL_REWARD_MAX: '0.0'
+  EXPLORATION_TOOL_MIN_CALLS: '1'
+  EXPLORATION_TOOL_MISSING_PENALTY: '0.0'
+  EXPLORATION_NO_TOOL_CALL_PENALTY: '0.0'
+  EXPLORATION_REWARD_CLAMP_MIN: '-1.0'
+  EXPLORATION_REWARD_CLAMP_MAX: '1.0'
+  SOFT_OVERLONG_REWARD_FACTOR: '1.0'
+  GIVE_UP_EMPTY_PATCH_PENALTY: '0.0'
+  RLLM_R2EGYM_FORCE_EXECUTION_COMMANDS: '1'
+  SWE_GENERIC_SANDBOX: '0'
+  RLLM_R2EGYM_SRC: '{{R2EGYM_SRC}}'
+
+  # ---- stage router ----
+  OPSD_STAGE_ROUTING: '0'
+  OPSD_STAGE_BACKTRACK: '3'
+  OPSD_PRIVILEGED_STAGES: ''
+  OPSD_COMBINED_PRIVILEGED_TEACHER: '0'
+
+  # ---- agent scaffold and environment ----
+  SWE_SCAFFOLD: sweagent
+  OPD_SWEAGENT_EVAL_PROMPT: '1'
+  OPD_END_TO_END_PROMPT: '1'
+  R2EGYM_DOCKER_HOST: tcp://127.0.0.1:23750
+  DOCKER_HOST: tcp://127.0.0.1:23750
+  # Image archives are loaded asynchronously on the Docker host. Wait for a
+  # failed/missing image to be re-pulled instead of emitting NO_CONTAINER.
+  R2EGYM_IMAGE_READY_RETRIES: '60'
+  R2EGYM_IMAGE_READY_RETRY_SECONDS: '60'
+  R2EGYM_TIMING: '1'
+  PREPULL_DATASET_IMAGES: '0'
+
+  # ---- run identity and data ----
+  PROJECT_NAME: swe_ladder
+  EXPERIMENT_NAME: baseline-grpo-4b-sweagent
+  TRAIN_DATASET: '{{DATA_ROOT}}/r2e_gym_lite_first2000_sweagent_staged/patch_generation/train_verl.parquet'
+  VAL_DATASET: '{{DATA_ROOT}}/r2e_gym_lite_first2000_sweagent_staged/patch_generation/train_verl.parquet'
+  WANDB_PROJECT: swe_ladder
+  WANDB_TAGS: pure-grpo,scaffold-sweagent,qwen3-4b,8xnpu-colocated
+
+  # ---- episode budget and length envelope ----
+  AGENT_MAX_STEPS: '50'
+  AGENT_TRAJECTORY_TIMEOUT: '5400'
+  # The paper specifies a 32K maximum response. The canonical SWE-agent user
+  # prompt is bounded separately at 10K; the effective rollout window is 43K.
+  MAX_PROMPT_LENGTH: '10240'
+  MAX_RESPONSE_LENGTH: '32768'
+  PPO_MAX_TOKEN_LEN_PER_GPU: '40960'
+  LOGPROB_MAX_TOKEN_LEN_PER_GPU: '40960'
+  ROLLOUT_MAX_MODEL_LEN: '43008'
+  AGENT_MAX_RESPONSE_TOKENS_FOR_TRAINING: '32768'
+  ROLLOUT_MAX_NUM_BATCHED_TOKENS: '16384'
+  OPSD_MAX_RESPONSE_TOKENS_FOR_TRAINING: '32768'
+  RLSD_ACTOR_MAX_PACKED_CONTEXT_TOKENS: '40960'
+  RLSD_LAMBDA: '0.5'
+  RLSD_LAMBDA_INIT: '0.5'
+  RLSD_LAMBDA_FINAL: '0.1'
+  RLSD_LAMBDA_DECAY_STEPS: '100'
+
+  # ---- per-stage auxiliary rewards (off: end-to-end reward only) ----
+  CAUSAL_LOCALIZATION_REWARD_ENABLE: '0'
+  DISABLE_EXECUTION_REWARD: '0'
+  ISSUE_REPRODUCTION_EVAL_ENABLE: '0'
+  ISSUE_REPRODUCTION_REWARD_ENABLE: '0'
