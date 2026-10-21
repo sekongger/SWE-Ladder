@@ -103,9 +103,10 @@ the script to restore state. `aggregate.py` does the paired tests.
 
 Paired Wilcoxon, one-sided: LOC vs none `p=0.029`, LOC vs whole-answer
 `p=0.035`; REPRO vs none `p=0.004`, REPRO vs whole-answer `p=0.014`. The
-off-diagonal cells sit at or below the no-privilege baseline — a privilege from
-the wrong rung does not help, and LOC privilege at a reproduction moment is
-slightly *worse* than nothing.
+matched-stage privilege gives the largest gain in each column, while the
+off-diagonal conditions sit much closer to the no-privilege baseline; LOC
+privilege at a reproduction moment is slightly *below* it (0.511 vs. 0.540).
+The cross-rung conditions do not reproduce the matched-stage gain.
 
 Reproduce with `python analysis/probe/aggregate.py` (needs `scipy` for the
 p-values; without it the means still print). Regenerating `results/` needs

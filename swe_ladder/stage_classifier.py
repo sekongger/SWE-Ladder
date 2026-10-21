@@ -4,15 +4,17 @@ Assigns each trajectory step to one of the three staged-OPD stages so that the O
 loss can route each step's tokens to the stage-appropriate privileged information
 (gold locations / gold tests / gold patch) without running a teacher model per step.
 
-Approach: a forward-only (monotonic) phase state machine driven by *unambiguous*
-tool-based transition markers. Ambiguous steps (file view, generic bash, test run,
-finish, plain reasoning) inherit the current phase. This mirrors the natural agent
-workflow localize -> reproduce -> patch, resolves the view-before-edit and
-python-run ambiguities by context, and is O(1) per step.
+Approach: a phase state machine driven by *unambiguous* tool-based transition
+markers. Ambiguous steps (file view, generic bash, test run, finish, plain
+reasoning) inherit the current phase. This mirrors the natural agent workflow
+localize -> reproduce -> patch, resolves the view-before-edit and python-run
+ambiguities by context, and is O(1) per step.
 
 Stage order: causal_localization < localized_issue_reproduction < patch_generation.
-A backtracking variant can later relax the monotonic constraint; kept forward-only
-here for a validated first version.
+v2 backtracks from PATCH to REP on a test run and to LOCALIZATION on an
+exploration action; a positive `backtrack_threshold` also returns REP to
+LOCALIZATION after that many consecutive exploration actions. Set
+`backtrack_threshold=0` for a forward-only state machine.
 """
 
 from __future__ import annotations

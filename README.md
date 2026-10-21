@@ -151,11 +151,14 @@ L = L_GRPO + λ · L_OPSD,    λ = 0.15,    teacher top-K = 16
 ```
 
 The OPSD term is a stop-gradient top-K reverse-KL surrogate on the teacher's
-16 most likely tokens. The 70-iteration total matches the
-`baseline_grpo_4b_openhands.yaml` control: the two runs take the same 70 policy
-updates on the same data and differ only in where privilege is applied.
-Training data contains 1,149 issues: SWE-smith (500), SWE-ReBench (431),
-R2E-Gym (155), and SWE-Gym (63).
+16 most likely tokens. All teacher variants share the student's system and task
+instructions; only the appended evidence block differs. The 70-iteration total
+matches the `baseline_grpo_4b_openhands.yaml` control: the two runs take the same
+70 policy updates on the same data and differ only in where privilege is
+applied. Each iteration samples 16 tasks with 4 rollouts per task (64
+trajectories), and the entropy-bonus coefficient is 0.005. Training data
+contains 1,149 issues: SWE-smith (500), SWE-ReBench (431), R2E-Gym (155), and
+SWE-Gym (63).
 
 ### The stage router
 
