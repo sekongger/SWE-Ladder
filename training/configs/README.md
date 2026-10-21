@@ -14,7 +14,7 @@ read and diff but cannot be launched as-is:
 
 ```bash
 cp site.env.example site.env && $EDITOR site.env        # once per machine
-../../scripts/tools/render_config.py ladder_4b_openhands_leg1_loc.yaml -o /tmp/run.yaml
+python3 ../../scripts/tools/render_config.py ladder_4b_openhands_leg1_loc.yaml -o /tmp/run.yaml
 bash ../run_npu_train_from_yaml.sh /tmp/run.yaml
 ```
 
@@ -24,7 +24,7 @@ single slot without editing the file, which is the intended way to point a
 resuming leg at the checkpoint it should continue from:
 
 ```bash
-../../scripts/tools/render_config.py ladder_4b_openhands_leg2_repro.yaml \
+python3 ../../scripts/tools/render_config.py ladder_4b_openhands_leg2_repro.yaml \
     --set RESUME_CHECKPOINT=/.../train_output/<leg1-run>/global_step_30 -o /tmp/run.yaml
 ```
 

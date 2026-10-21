@@ -7,7 +7,7 @@ how the length and memory numbers are derived, and which knobs are load-bearing.
 
 ```bash
 cp training/configs/site.env.example training/configs/site.env && $EDITOR …   # once
-scripts/tools/render_config.py training/configs/smoke_stage_routing.yaml -o /tmp/run.yaml
+python3 scripts/tools/render_config.py training/configs/smoke_stage_routing.yaml -o /tmp/run.yaml
 bash <rllm>/examples/swe/run_npu_train_from_yaml.sh --dry-run /tmp/run.yaml   # inspect
 bash <rllm>/examples/swe/run_npu_train_from_yaml.sh /tmp/run.yaml
 ```
@@ -28,7 +28,7 @@ Three legs over one dataset, each granting privilege to one rung:
 Each leg is a separate launch that resumes the previous leg's checkpoint:
 
 ```bash
-scripts/tools/render_config.py training/configs/ladder_4b_openhands_leg2_repro.yaml \
+python3 scripts/tools/render_config.py training/configs/ladder_4b_openhands_leg2_repro.yaml \
     --set RESUME_CHECKPOINT=$WS/train_output/<leg1-run>/global_step_30 -o /tmp/leg2.yaml
 ```
 
