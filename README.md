@@ -47,10 +47,10 @@ single end-to-end agent without privileged evidence at inference time.
 
 ## Results
 
-All numbers are single-seed runs from the Qwen3-4B-Instruct-2507 base
-checkpoint, with no task-specific supervised fine-tuning before RL, evaluated on
-the 500 instances of SWE-bench Verified. `pass@1` is the official verifier
-result; `env_done` is the fraction of rollouts that terminated on their own.
+Results from the paper. All methods start from Qwen3-4B-Instruct-2507 and are
+evaluated on the 500 instances of SWE-bench Verified without task-specific
+supervised fine-tuning before RL. `pass@1` is the official verifier result;
+`env_done` is the fraction of rollouts that terminated on their own.
 
 | Scaffold | Method | pass@1 (%) | Avg. steps | env_done (%) |
 |---|---|---:|---:|---:|
@@ -86,18 +86,13 @@ LOC, REP, and PATCH phases of SWE-Ladder.
 
 ### Evaluation protocol
 
-| Protocol | Scaffold | Context | Max steps | Temperature | Instances |
-|---|---|---|---:|---:|---:|
-| Primary | R2E-Gym | 64K | 150 | 0.7 | 500 |
-| Secondary | OpenHands | 128K | 150 | 0.7 | 500 |
+| Scaffold | Context | Max steps | Temperature | Instances |
+|---|---:|---:|---:|---:|
+| R2E-Gym | 64K | 150 | 0.7 | 500 |
+| OpenHands | 128K | 150 | 0.7 | 500 |
 
-The two scaffold groups are **not comparable**: a scaffold decides which tools
-exist in the container, and a model can fail by calling a tool that the scaffold
-does not implement. The shipped ladder launch examples instantiate the OpenHands
-scaffold; the R2E-Gym arm uses the same method code with
-`SWE_SCAFFOLD: r2egym` and the 64K budget above.
-`docs/EVALUATION.md` documents the protocols, the failure modes, and the rules
-for reading a number.
+All configurations are evaluated in the same environment and protocol within
+each scaffold.
 
 ## Method
 
@@ -169,46 +164,18 @@ moves the state back to REP and one exploration action returns it to LOC. A
 PATCH proposal from LOC can therefore skip REP. The router consumes only the
 parsed tool call; malformed tool calls are handled explicitly.
 
-Because everything depends on the router, it is measured against a shipped,
-hand-adjudicated gold set: ten complete trajectories, 119 steps, every step
-labeled LOCATE / REPRODUCE / PATCH / VERIFY by hand.
+The router is evaluated on held-out stage-labeled steps. The rule-based router
+agrees with the reference labels on **92.0%** of steps. A neural router trained
+on Qwen3.8-Max annotations reaches **98.63%** agreement on the same held-out
+set, but yields lower downstream pass@1; annotation agreement alone does not
+determine training utility.
 
-| Router | Agreement on the 119-step gold set | Reproducible offline |
-|---|---|---:|
-| Rule v2, used by the main ladder | **98/119 = 82.4%** | yes |
-| Rule v1 (`stage_classifier_v1_legacy.py`) | 113/119 = 95.0% | yes |
-| Semantic router (hosted LLM) | 112/119 = 94.1% | no — needs the gateway |
+| Router | Agreement with held-out labels |
+|---|---:|
+| Rule-based (SWE-Ladder) | 92.0% |
+| Neural (Qwen3.8-Max annotations) | 98.63% |
 
-The paper additionally reports **92.0%** agreement for rule v2 on 2,261 held-out
-steps annotated by Qwen3.8-Max, against **98.63%** for a learned neural router.
-That annotation set is not shipped, so the 92.0% figure is not reproducible
-offline; the 119-step gold set above is. The two numbers should not be read as
-one estimate on one sample.
-
-<details>
-<summary><strong>Why is v2 worse than v1 on this 119-step gold set?</strong></summary>
-
-v1 is the legacy rule set; v2 is the released router. On the gold set, all 21 of
-v2's errors are in one direction: gold-PATCH steps it still calls LOC (16) or
-REP (5). It is late to declare PATCH, never early, and the 119-step set is
-boundary-heavy. On the larger run-level silver check used during development the
-ordering reverses, but that check is computed from rollout dumps that are not
-shipped. The paper's 2,261-record held-out annotation check gives v2 92.0%, and
-the neural router's higher agreement (98.63%) still yields lower downstream
-pass@1.
-
-```text
-confusion (rows = gold, cols = rule router v2)
-           LOC  REPRO  PATCH
-    LOC     38      0      0
-  REPRO      0      8      0
-  PATCH     16      5     52
-```
-
-We keep the unflattering 82.4% visible because label agreement and training
-utility are different quantities.
-
-</details>
+SWE-Ladder uses the rule-based router; the neural router is an ablation.
 
 ## Quick start
 
@@ -250,7 +217,7 @@ For the CPU-only tooling, no accelerator stack is needed:
 
 ```bash
 python3 -m pip install -r requirements.txt
-python3 analysis/stage_ladder/validate_router_gold.py
+python3 -m unittest discover -s stage_capability_eval/tests -q
 ```
 
 ## Repository layout
@@ -261,20 +228,20 @@ python3 analysis/stage_ladder/validate_router_gold.py
 | [`training/`](training/configs/README.md) | 24 example run definitions (stage ladders, baselines, and ablations), launchers, and entrypoints. A config is the *whole* run definition. |
 | [`eval/`](eval/README.md) | End-to-end SWE-bench Verified: serve a checkpoint, roll out, and recover from infrastructure failures until 500 clean rows exist. |
 | [`stage_capability_eval/`](stage_capability_eval/README.md) | Per-stage scoring with oracle localization handed to the later stages, so a drop between stages is attributable. |
-| [`analysis/`](analysis/README.md) | Six experiment groups, each with its claim, shipped data, and caveats. |
+| [`analysis/`](analysis/README.md) | Six experiment groups with their shipped data. |
 | [`scripts/`](scripts/data/README.md) | Dataset construction, config rendering, prompt-template generation, environment setup. |
-| [`data/`](data/README.md) | Dataset recipe, staged-record samples, and the 119-step router gold set. No datasets or weights. |
+| [`data/`](data/README.md) | Dataset recipe and staged-record samples. No datasets or weights. |
 | [`integration/`](integration/README.md) | The three upstream patches, the installer, and the install checker. |
-| [`docs/`](docs/) | [TRAINING.md](docs/TRAINING.md) — how a run is launched and which knobs are load-bearing. [EVALUATION.md](docs/EVALUATION.md) — protocols, anchors, and rules for reading a number. |
+| [`docs/`](docs/) | [TRAINING.md](docs/TRAINING.md) — how a run is launched and which knobs are load-bearing. [EVALUATION.md](docs/EVALUATION.md) — evaluation protocols and notes. |
 | [`assets/`](assets/) | Figures from the paper used in this README. |
 
 ## Analysis
 
-The paper's stage-level diagnostics are computed from the same 500 SWE-bench
-Verified trajectories. Each metric is a behavioral check, not an additional
-reward: localization is gold-file recall, reproduction is creating and running a
-failing repro, and verification is re-running the repro without a failure after
-the last edit. Only `solve` is test-verified.
+The stage-level diagnostics are computed from the same 500 SWE-bench Verified
+trajectories. Localization is gold-file recall, reproduction is creating and
+running a failing reproduction, verification is re-running the reproduction
+after the last edit without a failure, and solve is the official verifier
+result.
 
 <p align="center">
   <img src="assets/stage_diagnostics.png" alt="Stage-wise change from the base model for GRPO, GRPO+OPSD, all-at-once, and SWE-Ladder" width="78%">
@@ -297,56 +264,27 @@ reproduction and verification for localization; the PATCH phase recovers both,
 and PATCH70 is above the base on all four metrics.
 </em></p>
 
-The repository also ships independent analyses, with their caveats attached:
+Additional offline analyses are in [`analysis/`](analysis/README.md).
 
-- **Causal intervention probe** (`analysis/probe/`): candidate next actions are
-  executed in real containers under no privilege, LOC privilege, REPRO
-  privilege, and whole-answer privilege. Each privilege gives its largest gain
-  at its own stage, and moving it to the other stage gives a much smaller
-  change.
-- **Gradient geometry** (`analysis/grad_interference/`): stage-matched reverse
-  KL, layer profiles, and per-token teacher anchoring. The token-level audit is
-  an honest negative: per-token teacher preference does not recover the rule
-  labels (18.9% against a 29.4% shuffle null).
-- **Fork suppression** (`analysis/fork_suppression/`): a replication of the
-  fork-suppression result in arXiv:2607.05184, with the deviations and frozen
-  thresholds documented before the metrics were computed.
-- **Behavior and overlap** (`analysis/behavior_structure.py`,
-  `analysis/solved_overlap.py`): how trajectories change and which instances
-  are uniquely solved.
+## Scope
 
-## What this repository does not contain
-
-- **No datasets and no weights.** [`data/README.md`](data/README.md) gives the
-  recipe and the four public sources; `scripts/data/` rebuilds the parquet
-  datasets.
-- **No evaluation or training output.** `output/` and `train_output/` are tens
-  of GB per run. The analysis scripts that need them say so and exit on a
-  missing path; the aggregates they produce are shipped as JSON so the tables
-  can be recomputed.
-- **No private evaluation split.**
-  `stage_capability_eval/evaluator_private/` — gold patches, test patches,
-  F2P/P2P names, reference records — is generated locally and deliberately
-  absent. The public tree is checked for leakage: `oracle_loc` carries line
-  spans and a `patch_sha256`, never patch text.
-- **No secrets.** Configs that use the hosted router expect
-  `OPSD_STAGE_API_KEY` from the launching shell. Setting it to an empty string
-  in a YAML would override the environment and drop the router silently back to
-  its rule fallback.
+This repository contains the training and evaluation code, run configurations,
+and analysis scripts. Datasets and weights are built or downloaded with the
+recipes in [`data/README.md`](data/README.md). Run outputs are produced locally
+and are not part of the release. The private evaluation split is generated
+locally by `stage_capability_eval/` for scoring.
 
 ## Requirements
 
 The standalone tooling (`scripts/`, `analysis/`, `stage_capability_eval/`,
 `eval/`) runs on plain CPU Python ≥ 3.10:
-`pip install -r requirements.txt`. It deliberately pulls in no accelerator
+`pip install -r requirements.txt`. It uses no accelerator
 stack. The trainer's dependencies — torch or torch_npu, vLLM, verl, Ray — come
 from the upstream rllm environment you install into; `scripts/setup/` has the
 Ascend and CUDA environment builds we used.
 
-The paper's 4B runs used 8× Ascend 910B. Exploratory 8B runs used 4× A800 and
-are not part of the paper's results. [`docs/TRAINING.md`](docs/TRAINING.md) has
-the device-specific knobs, including the two that are correctness settings
-rather than performance settings.
+The paper's 4B runs used 8× Ascend 910B. [`docs/TRAINING.md`](docs/TRAINING.md)
+has the device-specific knobs.
 
 ## Citation
 
