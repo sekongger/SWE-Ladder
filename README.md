@@ -99,17 +99,6 @@ each scaffold.
 SWE-Ladder has three parts: stage-specific evidence, a deterministic router that
 assigns it, and a progressive schedule that introduces one stage at a time.
 
-<p align="center">
-  <img src="assets/motivation.png" alt="Whole-trajectory reward, full-patch privilege, and stage-specific privileged supervision" width="72%">
-</p>
-
-<p align="center"><em>
-Comparison of supervision signals. GRPO assigns one reward to the whole
-trajectory; GRPO+OPSD shows the teacher the full reference patch at every step;
-SWE-Ladder gives the teacher stage-specific evidence and introduces the stages
-one at a time.
-</em></p>
-
 ### Stage-specific evidence
 
 The verified repair and its tests are converted into three evidence views. The
@@ -241,30 +230,7 @@ The stage-level diagnostics are computed from the same 500 SWE-bench Verified
 trajectories. Localization is gold-file recall, reproduction is creating and
 running a failing reproduction, verification is re-running the reproduction
 after the last edit without a failure, and solve is the official verifier
-result.
-
-<p align="center">
-  <img src="assets/stage_diagnostics.png" alt="Stage-wise change from the base model for GRPO, GRPO+OPSD, all-at-once, and SWE-Ladder" width="78%">
-</p>
-
-<p align="center"><em>
-Stage-wise change from the Qwen3-4B-Instruct-2507 base on SWE-bench Verified
-(R2E-Gym, n=500). Base values: localization 33.6%, reproduction 59.4%,
-verification 22.6%, pass@1 9.6%. SWE-Ladder is the only method that raises
-localization and verification without lowering reproduction.
-</em></p>
-
-<p align="center">
-  <img src="assets/checkpoint_capability.png" alt="Capability changes from the base model at LOC30, REP50, and PATCH70" width="66%">
-</p>
-
-<p align="center"><em>
-Capability changes across the progressive checkpoints. The REP phase trades
-reproduction and verification for localization; the PATCH phase recovers both,
-and PATCH70 is above the base on all four metrics.
-</em></p>
-
-Additional offline analyses are in [`analysis/`](analysis/README.md).
+result. Additional offline analyses are in [`analysis/`](analysis/README.md).
 
 ## Scope
 
