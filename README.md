@@ -170,10 +170,27 @@ SWE-Ladder uses the rule-based router; the neural router is an ablation.
 ```bash
 git clone https://github.com/sekongger/SWE-Ladder
 cd SWE-Ladder
+
+# 1. Prepare the pinned upstream workspace as described in integration/README.md,
+#    then graft this repository onto it:
+WS=~/swe-ladder-workspace
+bash integration/install.sh --workspace "$WS" --check
+bash integration/install.sh --workspace "$WS"
+python3 integration/check_install.py --workspace "$WS"
+
+# 2. Configure the paths for this machine:
+cp training/configs/site.env.example training/configs/site.env
+$EDITOR training/configs/site.env
+
+# 3. Render and launch the smoke test:
+python3 scripts/tools/render_config.py training/configs/smoke_stage_routing.yaml -o /tmp/run.yaml
+bash "$WS/DeepSWE_RL/rllm/examples/swe/run_npu_train_from_yaml.sh" /tmp/run.yaml
 ```
 
-See [`integration/README.md`](integration/README.md) for installation and
-[`docs/TRAINING.md`](docs/TRAINING.md) for the smoke test and device setup.
+For a CUDA machine, use
+`run_gpu_train_from_yaml.sh` instead of the NPU launcher. See
+[`integration/README.md`](integration/README.md) for the upstream workspace and
+[`docs/TRAINING.md`](docs/TRAINING.md) for device setup.
 
 ## Repository layout
 
