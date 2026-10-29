@@ -177,7 +177,7 @@ env:
   # reverse-KL is computed under its stage's privileged teacher context. Set '0' to disable
   # (falls back to single-context OPSD). OPSD_STAGE_BACKTRACK=N: N consecutive exploration
   # steps move the phase back to localization (0 = monotonic/forward-only).
-  # === SDAR BASELINE (arXiv 2605.15155) adapted to SWE ===
+  # === SDAR BASELINE (arXiv 2605.15155, ZJU-REAL) adapted to SWE ===
   # GRPO + confidence-gated sampled-token self-distillation: gate = sigmoid(beta*(lp_T-lp_S)),
   # fully detached; replaces the top-k reverse KL (dp_actor opsd_sdar_gate branch). Teacher =
   # frozen base model + SINGLE flat privileged context (the golden patch as the "skill"),
