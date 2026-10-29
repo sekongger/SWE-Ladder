@@ -4,7 +4,6 @@
 
 **Learning to Localize, Reproduce, and Patch via<br/>Progressive Privileged Self-Distillation**
 
-[![Paper](https://img.shields.io/badge/Paper-ACL%202027%20submission-B31B1B?style=flat-square)](https://anonymous.4open.science/r/SWE-Ladder-279F/)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square)](pyproject.toml)
 
@@ -29,7 +28,7 @@ single end-to-end agent without privileged evidence at inference time.
 
 ## News
 
-- **Oct 2026** — Code released alongside the ACL 2027 submission.
+- **Oct 2026** — Code released.
 
 ## Highlights
 
@@ -254,19 +253,7 @@ has the device-specific knobs.
 
 ## Citation
 
-The paper is under review; the author list will be updated after
-de-anonymization.
-
-```bibtex
-@misc{swe-ladder-2027,
-  title        = {{SWE-Ladder}: Learning to Localize, Reproduce, and Patch
-                  via Progressive Privileged Self-Distillation},
-  author       = {Anonymous},
-  year         = {2027},
-  note         = {Under review},
-  howpublished = {\url{https://anonymous.4open.science/r/SWE-Ladder-279F/}}
-}
-```
+Citation information will be added once the paper is publicly available.
 
 ## License and attribution
 
