@@ -165,48 +165,6 @@ determine training utility.
 
 SWE-Ladder uses the rule-based router; the neural router is an ablation.
 
-## Quick start
-
-The training code is an **overlay, not a fork**. Our files ship as ordinary
-sources; the upstream files we changed ship as git patches. One script applies
-the patches and installs our files into a pinned SWE-Master / verl checkout.
-
-Download this repository from the anonymous page and run the commands below
-from its root.
-
-```bash
-# 1. upstream checkouts (rllm + R2E-Gym from SWE-Master; verl nested inside rllm)
-WS=~/swe-ladder-workspace
-git clone https://github.com/RUCAIBox/SWE-Master "$WS"
-git -C "$WS" checkout fb864a7d397b2c287ba6e38152da2228efc98e03
-git clone https://github.com/verl-project/verl "$WS/DeepSWE_RL/rllm/verl"
-git -C "$WS/DeepSWE_RL/rllm/verl" checkout d4399a673ae60748271af009d38e9a3dca86086b
-
-# 2. graft this repository onto it
-bash integration/install.sh --workspace "$WS" --check   # dry run first
-bash integration/install.sh --workspace "$WS"
-python3 integration/check_install.py --workspace "$WS"
-
-# 3. point the configs at your machine, then smoke-test before anything long
-cp training/configs/site.env.example training/configs/site.env && $EDITOR training/configs/site.env
-python3 scripts/tools/render_config.py training/configs/smoke_stage_routing.yaml -o /tmp/run.yaml
-bash "$WS/DeepSWE_RL/rllm/examples/swe/run_npu_train_from_yaml.sh" /tmp/run.yaml
-```
-
-On a CUDA machine, replace the last line with
-`bash "$WS/DeepSWE_RL/rllm/examples/swe/run_gpu_train_from_yaml.sh" /tmp/run.yaml`.
-
-The smoke config is `n=2 × bs=2` and reaches the first `update_actor` in
-minutes, which is where environment problems surface. Run it on every new
-machine.
-
-For the CPU-only tooling, no accelerator stack is needed:
-
-```bash
-python3 -m pip install -r requirements.txt
-python3 -m unittest discover -s stage_capability_eval/tests -q
-```
-
 ## Repository layout
 
 | Directory | Contents |
