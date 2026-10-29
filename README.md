@@ -171,9 +171,10 @@ The training code is an **overlay, not a fork**. Our files ship as ordinary
 sources; the upstream files we changed ship as git patches. One script applies
 the patches and installs our files into a pinned SWE-Master / verl checkout.
 
-```bash
-# 0. from the root of this repository
+Download this repository from the anonymous page and run the commands below
+from its root.
 
+```bash
 # 1. upstream checkouts (rllm + R2E-Gym from SWE-Master; verl nested inside rllm)
 WS=~/swe-ladder-workspace
 git clone https://github.com/RUCAIBox/SWE-Master "$WS"
