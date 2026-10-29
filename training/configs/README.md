@@ -138,11 +138,11 @@ anyone matching them against logs or W&B history:
 | `ladder_4b_openhands_leg1_loc_semantic_router.yaml` | `..._loc_only_semantic_openhands_4b_npu8.yaml` |
 | `ladder_4b_sweagent_leg1_loc.yaml` | `opsd_grpo_staged_sweagent_lite2000_curriculum_loc_from_base.yaml` |
 | `ladder_4b_sweagent_leg2_repro.yaml` | `opsd_grpo_staged_sweagent_lite2000_curriculum_repro_from_loc30.yaml` |
-| `ladder_8b_cuda_leg1_loc.yaml` | `..._enriched_loc_only_rule_8b_gpu4_openhands_cxd.yaml` |
-| `baseline_grpo_4b_openhands.yaml` | `pure_grpo_baseline_4b_npu8_openhands_cxd.yaml` |
+| `ladder_8b_cuda_leg1_loc.yaml` | `..._enriched_loc_only_rule_8b_gpu4_openhands_internal.yaml` |
+| `baseline_grpo_4b_openhands.yaml` | `pure_grpo_baseline_4b_npu8_openhands_internal.yaml` |
 | `baseline_grpo_4b_sweagent.yaml` | `grpo_baseline_sweagent_r2e_gym_lite_first2000_base_toolfix_20261002.yaml` |
-| `baseline_grpo_8b_cuda.yaml` | `pure_grpo_end_to_end_qwen3_8b_gpu4_openhands_cxd.yaml` |
-| `baseline_arpo_4b.yaml` | `arpo_4b_npu8_r2egym_cxd.yaml` |
+| `baseline_grpo_8b_cuda.yaml` | `pure_grpo_end_to_end_qwen3_8b_gpu4_openhands_internal.yaml` |
+| `baseline_arpo_4b.yaml` | `arpo_4b_npu8_r2egym_internal.yaml` |
 | `baseline_sdar_4b.yaml` | `sdar_baseline_e2e_from_base_colocated_8npu.yaml` |
 | `ablation_privilege_patch_only.yaml` | `opsd_grpo_end_to_end_stage_routing_enriched_colocated_8npu.yaml` |
 | `ablation_no_router_whole_answer.yaml` | `opsd_grpo_end_to_end_NO_routing_wholeanswer_colocated_8npu.yaml` |

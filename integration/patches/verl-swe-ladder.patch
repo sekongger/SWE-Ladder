@@ -2651,7 +2651,7 @@ index c13ffa09..812a9cf3 100644
 +                        and bool(self.config.get("opsd_sdar_gate", False))
 +                        and all(key in model_inputs for key in opd_batch_keys)
 +                    ):
-+                        # SDAR baseline (arXiv 2605.15155, ZJU-REAL/SDAR sdar_utils.py):
++                        # SDAR baseline (arXiv 2605.15155, sdar_utils.py):
 +                        # confidence-gated sampled-token distillation replaces the top-k
 +                        # reverse KL. gate = sigmoid(beta * (lp_T - lp_S)) fully detached;
 +                        # loss = agg(gate * (lp_T - lp_S)) with grads only through the

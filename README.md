@@ -172,9 +172,7 @@ sources; the upstream files we changed ship as git patches. One script applies
 the patches and installs our files into a pinned SWE-Master / verl checkout.
 
 ```bash
-# 0. the release
-git clone https://github.com/sekongger/SWE-Ladder
-cd SWE-Ladder
+# 0. from the root of this repository
 
 # 1. upstream checkouts (rllm + R2E-Gym from SWE-Master; verl nested inside rllm)
 WS=~/swe-ladder-workspace

@@ -32,8 +32,6 @@ dependencies = [
 analysis = ["matplotlib>=3.7", "tqdm>=4.65"]
 containers = ["docker>=6.1"]
 
-[project.urls]
-Homepage = "https://github.com/sekongger/SWE-Ladder"
 
 # `swe_ladder` is importable from a checkout so the shipped scripts and the analysis
 # code can use it before (or without) installing into an rllm tree, where the same
